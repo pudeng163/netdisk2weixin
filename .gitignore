@@ -1,0 +1,26 @@
+# 配置与敏感信息
+config.yaml
+.env
+config/
+*.json
+
+# 运行时数据
+data/cache/
+data/logs/
+data/share/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 二进制（可自行决定是否提交；这里默认忽略）
+assets/bin/
+
+# IDE
+.idea/
+.vscode/
+# 参考项目（本地保留，不上传）
+参考项目/

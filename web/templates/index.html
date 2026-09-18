@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网盘拉新转存分享配置</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh; padding: 20px;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .card { background: white; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); padding: 30px; margin-bottom: 20px; }
+        h1 { color: #333; margin-bottom: 10px; font-size: 28px; }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        .form-group { margin-bottom: 25px; }
+        label { display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+        .hint { color: #999; font-size: 12px; margin-top: 5px; }
+        input[type="text"], input[type="number"], textarea, select {
+            width: 100%; padding: 12px 15px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input:focus, textarea:focus, select:focus { outline: none; border-color: #667eea; }
+        textarea { resize: vertical; min-height: 80px; }
+        .btn-group { display: flex; gap: 15px; margin-top: 30px; flex-wrap: wrap; }
+        .btn { flex: 1; min-width: 200px; padding: 14px 20px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+        .btn-secondary { background: #f5f5f5; color: #333; }
+        .btn-secondary:hover { background: #e0e0e0; }
+        .btn-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; }
+        .btn-success:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(56, 239, 125, 0.4); }
+        .loading { display: none; text-align: center; padding: 20px; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .toast { position: fixed; top: 20px; right: 20px; padding: 15px 25px; border-radius: 8px; color: white; font-weight: 500; z-index: 1000; animation: slideIn 0.3s ease; }
+        .toast-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+        .toast-error { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .current-config { background: #e8f4fd; border-left: 4px solid #667eea; padding: 15px; margin-bottom: 20px; border-radius: 0 8px 8px 0; }
+        .current-config h3 { color: #667eea; margin-bottom: 10px; font-size: 14px; }
+        .current-config p { color: #666; font-size: 13px; margin: 5px 0; }
+        .tag { display: inline-block; background: #667eea; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin: 2px; }
+        .tag-exclude { background: #eb3349; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🚀 网盘拉新转存分享配置</h1>
+            <p class="subtitle">配置搜索参数，一键运行转存分享任务（百度 / 夸克）</p>
+
+            <div class="current-config" id="currentConfig">
+                <h3>📋 当前保存的配置</h3>
+                <p>平台: <span id="savedPlatform">-</span></p>
+                <p>关键词: <span id="savedKw">-</span></p>
+                <p>包含: <span id="savedInclude">-</span></p>
+                <p>排除: <span id="savedExclude">-</span></p>
+                <p>数量: <span id="savedCount">-</span></p>
+            </div>
+
+            <form id="configForm">
+                <div class="form-group">
+                    <label for="platform">🌐 网盘平台</label>
+                    <select id="platform" name="platform">
+                        <option value="quark">夸克网盘</option>
+                        <option value="baidu">百度网盘</option>
+                    </select>
+                    <p class="hint">选择要转存的网盘平台（百度暂不支持预览，将直接运行）</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="kw">🔍 搜索关键词</label>
+                    <input type="text" id="kw" name="kw" placeholder="输入搜索关键词，如：电影、电视剧">
+                    <p class="hint">可选。留空使用默认</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="include">✅ 包含关键词</label>
+                    <textarea id="include" name="include" placeholder="输入包含关键词，多个用逗号分隔，如：高码, HDR, 4K"></textarea>
+                    <p class="hint">结果中至少包含其中一个关键词（OR关系）</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="exclude">❌ 排除关键词</label>
+                    <textarea id="exclude" name="exclude" placeholder="输入排除关键词，多个用逗号分隔，如：预告, 抢先, 可搜索"></textarea>
+                    <p class="hint">结果中包含任意一个关键词就排除（OR关系）</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="count">📊 选取数量</label>
+                    <input type="number" id="count" name="count" min="1" max="50" value="5">
+                    <p class="hint">随机选取的文件数量（1-50）</p>
+                </div>
+
+                <div class="btn-group">
+                    <button type="button" class="btn btn-primary" onclick="runTask(false)">⚡ 临时运行</button>
+                    <button type="button" class="btn btn-success" onclick="runTask(true)">💾 永久保存并运行</button>
+                </div>
+
+                <div class="btn-group">
+                    <button type="button" class="btn btn-secondary" onclick="saveConfigOnly()">📁 仅保存配置</button>
+                    <button type="button" class="btn btn-secondary" onclick="loadConfig()">🔄 加载已保存配置</button>
+                </div>
+            </form>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p id="loadingText">任务执行中，请稍候...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function getConfig() {
+            const kwInput = document.getElementById('kw').value;
+            return {
+                platform: document.getElementById('platform').value,
+                kw: kwInput === '' ? null : kwInput,
+                include: document.getElementById('include').value.split(',').map(s => s.trim()).filter(s => s),
+                exclude: document.getElementById('exclude').value.split(',').map(s => s.trim()).filter(s => s),
+                count: parseInt(document.getElementById('count').value) || 5
+            };
+        }
+
+        function setConfig(config) {
+            document.getElementById('platform').value = config.platform || 'quark';
+            document.getElementById('kw').value = config.kw === null || config.kw === undefined ? '' : config.kw;
+            document.getElementById('include').value = (config.include || []).join(', ');
+            document.getElementById('exclude').value = (config.exclude || []).join(', ');
+            document.getElementById('count').value = config.count || 5;
+        }
+
+        function updateSavedConfigDisplay(config) {
+            document.getElementById('savedPlatform').textContent = config.platform || '-';
+            document.getElementById('savedKw').textContent = config.kw || '-';
+            document.getElementById('savedInclude').innerHTML = (config.include || []).map(t => `<span class="tag">${t}</span>`).join(' ') || '-';
+            document.getElementById('savedExclude').innerHTML = (config.exclude || []).map(t => `<span class="tag tag-exclude">${t}</span>`).join(' ') || '-';
+            document.getElementById('savedCount').textContent = config.count || '-';
+        }
+
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const data = await response.json();
+                if (data.success) {
+                    setConfig(data.config);
+                    updateSavedConfigDisplay(data.config);
+                }
+            } catch (error) {
+                showToast('加载配置失败: ' + error.message, 'error');
+            }
+        }
+
+        async function saveConfigOnly() {
+            const config = getConfig();
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...config, permanent: true })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    updateSavedConfigDisplay(config);
+                    showToast(data.message);
+                } else {
+                    showToast(data.message, 'error');
+                }
+            } catch (error) {
+                showToast('保存失败: ' + error.message, 'error');
+            }
+        }
+
+        let previewModal = null;
+
+        function showPreviewModal(items, config, permanent, totalFound) {
+            previewModal = document.createElement('div');
+            previewModal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 2000;';
+
+            const content = document.createElement('div');
+            content.style.cssText = 'background: white; border-radius: 16px; padding: 30px; max-width: 600px; max-height: 80vh; overflow-y: auto; width: 90%;';
+
+            content.innerHTML = `
+                <h2 style="margin-bottom: 20px; color: #333;">确认转存资源</h2>
+                <p style="color: #666; margin-bottom: 20px;">即将转存以下 ${items.length} 个资源：搜索结果共 ${totalFound || '未知'} 个</p>
+                <ul style="list-style: none; padding: 0; margin-bottom: 20px;">
+                    ${items.map((item, index) => `
+                        <li style="padding: 10px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px;">
+                            <span style="color: #667eea; font-weight: 600;">${index + 1}.</span>
+                            <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.note || '未知标题'}</span>
+                        </li>
+                    `).join('')}
+                </ul>
+                <div style="display: flex; gap: 15px;">
+                    <button onclick="confirmAndRun()" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">确认转存</button>
+                    <button onclick="closePreviewModal()" style="flex: 1; padding: 12px; background: #f5f5f5; color: #333; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">取消</button>
+                </div>
+            `;
+
+            previewModal.appendChild(content);
+            document.body.appendChild(previewModal);
+            previewModal.onclick = function(e) { if (e.target === previewModal) closePreviewModal(); };
+        }
+
+        function closePreviewModal() {
+            if (previewModal && previewModal.parentNode) previewModal.parentNode.removeChild(previewModal);
+            previewModal = null;
+        }
+
+        async function confirmAndRun() {
+            try {
+                const response = await fetch('/api/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+                const data = await response.json();
+                if (data.success) showToast(data.message);
+                else showToast(data.message, 'error');
+            } catch (error) {
+                showToast('启动失败: ' + error.message, 'error');
+            } finally {
+                closePreviewModal();
+            }
+        }
+
+        async function runTask(permanent) {
+            const config = getConfig();
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('loadingText').textContent = '正在获取预览...';
+
+            try {
+                const response = await fetch('/api/preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...config })
+                });
+                const data = await response.json();
+                document.getElementById('loading').style.display = 'none';
+
+                if (data.code === 200 && data.preview && data.items) {
+                    showPreviewModal(data.items, config, permanent, data.total_found);
+                } else if (config.platform === 'baidu' && !data.preview) {
+                    // 百度无预览：直接运行
+                    const runResponse = await fetch('/api/run', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...config, permanent })
+                    });
+                    const runData = await runResponse.json();
+                    if (runData.success) { showToast(runData.message); if (permanent) updateSavedConfigDisplay(config); }
+                    else showToast(runData.message, 'error');
+                } else {
+                    showToast(data.message || '预览失败', 'error');
+                }
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                showToast('预览失败: ' + error.message, 'error');
+            }
+        }
+
+        window.onload = function() { loadConfig(); };
+    </script>
+</body>
+</html>
