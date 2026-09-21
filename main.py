@@ -7,9 +7,12 @@
     python main.py all          # 两个都跑，合并结果统一推送
     python main.py web          # 启动 Web 管理界面 (默认端口 5003)
 
-也可用 --count N 覆盖数量。
+文本替换模式：
+    python main.py --text "xxx https://pan.quark.cn/s/abc 提取码: 1234 xxx"
+    python main.py --text-file input.txt --output output.txt
 """
 import argparse
+import asyncio
 import sys
 
 from adapters import get_adapter, ADAPTERS
@@ -63,7 +66,49 @@ def main():
     parser.add_argument("--preview", action="store_true", default=False,
                         help="只预览资源列表，不执行转存")
     parser.add_argument("--port", type=int, default=5003, help="Web 界面端口")
+    parser.add_argument("--text", type=str, default=None,
+                        help="直接传入文本，自动识别网盘链接→转存→替换")
+    parser.add_argument("--text-file", type=str, default=None,
+                        help="从文件读取文本进行链接替换")
+    parser.add_argument("--output", type=str, default=None,
+                        help="替换后的文本输出到文件（不指定则打印到控制台）")
+    parser.add_argument("--save-history", action="store_true", default=False,
+                        help="文本替换结果也写入推送历史")
+    parser.add_argument("--push-wechat", action="store_true", default=False,
+                        help="替换后推送企业微信（摘要 + 完整文本）")
     args = parser.parse_args()
+
+    if args.text or args.text_file:
+        from core.text_replacer import run_from_text
+        text = args.text
+        if args.text_file:
+            with open(args.text_file, "r", encoding="utf-8") as f:
+                text = f.read()
+        if not text:
+            log_print("输入文本为空", "ERROR")
+            return
+        result = asyncio.run(run_from_text(
+            text, save_results=args.save_history, push_wechat=args.push_wechat
+        ))
+        log_print(f"替换完成: {result.get('message', '')}")
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(result["replaced_text"])
+            log_print(f"已写入: {args.output}", "SUCCESS")
+        else:
+            print("\n" + "=" * 60)
+            print("===== 替换后的文本 =====")
+            print("=" * 60)
+            print(result["replaced_text"])
+            print("=" * 60)
+            for r in result.get("results", []):
+                status_icon = "✅" if r["status"] == "success" else "❌"
+                print(f"{status_icon} [{r['platform']}] {r['original_url'][:60]}")
+                if r["new_url"]:
+                    print(f"    → {r['new_url']}")
+                elif r["message"]:
+                    print(f"    失败: {r['message']}")
+        return
 
     if args.platform == "web":
         from web.web_app import start_web

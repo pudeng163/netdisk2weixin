@@ -12,6 +12,7 @@ import json
 import random
 import string
 import asyncio
+import subprocess
 from datetime import datetime
 from typing import Union, Dict, Any, List, Tuple
 
@@ -71,11 +72,25 @@ def save_text(path, content, mode="w"):
         f.write(content)
 
 
-def load_pushed_titles():
-    """从历史记录中加载已推送的资源名称集合。"""
-    pushed = set()
+def _normalize_title(s):
+    """去掉空白/标点/转全角，用于模糊匹配。"""
+    if not s:
+        return ""
+    s = re.sub(r"[\s\u3000]+", "", s)
+    s = s.replace("（", "(").replace("）", ")")
+    s = s.replace("：", ":").replace("，", ",").replace("。", ".")
+    s = s.replace("！", "!").replace("？", "?").replace("、", ",")
+    s = s.replace("【", "[").replace("】", "]")
+    return s.lower()
+
+
+def load_pushed_records():
+    """加载历史推送记录，返回 (titles, urls, normalized_titles)。"""
+    titles = set()
+    urls = set()
+    normed = []
     if not os.path.exists(SHARE_TOTAL_FILE):
-        return pushed
+        return titles, urls, normed
     try:
         with open(SHARE_TOTAL_FILE, "r", encoding="utf-8") as f:
             for line in f:
@@ -83,11 +98,33 @@ def load_pushed_titles():
                 if not line:
                     continue
                 parts = line.split("|")
-                if parts and parts[0].strip():
-                    pushed.add(parts[0].strip())
+                if len(parts) >= 1 and parts[0].strip():
+                    t = parts[0].strip()
+                    titles.add(t)
+                    n = _normalize_title(t)
+                    if len(n) >= 3:
+                        normed.append(n)
+                if len(parts) >= 2 and parts[1].strip():
+                    urls.add(parts[1].strip())
     except Exception as e:
         log_print(f"加载历史推送记录失败: {str(e)}", "WARNING")
-    return pushed
+    return titles, urls, normed
+
+
+def _is_pushed(item, pushed_titles, pushed_urls, pushed_normed):
+    title = item.get("note", "") or ""
+    url = item.get("url", "") or ""
+    if url and url in pushed_urls:
+        return True
+    if title and title in pushed_titles:
+        return True
+    nt = _normalize_title(title)
+    if not nt or len(nt) < 3:
+        return False
+    for pn in pushed_normed:
+        if len(pn) >= 4 and (pn in nt or nt in pn):
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -382,14 +419,40 @@ class QuarkPanFileManager:
             raise
 
 
-def _upload_yinliu_pdf(kuake_cli, pdf_path, title, subdir=""):
+_FID_PATH_CACHE = {}
+
+
+def _resolve_fid_to_path(kuake_cli, folder_fid):
+    if not folder_fid or folder_fid == "0":
+        return ""
+    if folder_fid in _FID_PATH_CACHE:
+        return _FID_PATH_CACHE[folder_fid]
+    try:
+        result = subprocess.run(
+            [kuake_cli, "list", "/"], capture_output=True, timeout=15
+        )
+        text = result.stdout.decode("utf-8", errors="replace")
+        data = json.loads(text[text.find("{"):]) if text.find("{") >= 0 else {}
+        for item in data.get("data", {}).get("list", []):
+            if item.get("fid") == folder_fid:
+                path = item.get("path", "")
+                _FID_PATH_CACHE[folder_fid] = path
+                log_print(f"解析 fid={folder_fid} → path={path}", "DEBUG")
+                return path
+    except Exception as e:
+        log_print(f"解析 folder_fid 失败: {e}", "WARNING")
+    _FID_PATH_CACHE[folder_fid] = ""
+    return ""
+
+
+def _upload_yinliu_pdf(kuake_cli, pdf_path, title, folder_path=""):
     if not kuake_cli or not os.path.exists(kuake_cli):
         log_print(f"kuake 可执行文件不存在，跳过引流文件上传: {kuake_cli}", "WARNING")
         return
     if not os.path.exists(pdf_path):
         log_print(f"引流 PDF 不存在，跳过上传: {pdf_path}", "WARNING")
         return
-    prefix = f"/{subdir}" if subdir else ""
+    prefix = folder_path or ""
     cmd = f'{kuake_cli} upload "{pdf_path}" "{prefix}/{title}/333333.pdf"'
     log_print(f"执行: {cmd}", "DEBUG")
     os.system(cmd)
@@ -402,9 +465,11 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
                                 quark_cookie, cookie_file, kw=None,
                                 include=None, exclude=None, preview_only=False,
                                 selected_items=None, folder_fid="0",
-                                yinliu_subdir="", force=False):
+                                force=False):
     manager = QuarkPanFileManager(headless=False, slow_mo=500,
                                   cookie=quark_cookie, cookie_file=cookie_file)
+
+    folder_path = _resolve_fid_to_path(kuake_cli, folder_fid)
 
     if selected_items is not None:
         quark_data = selected_items
@@ -415,16 +480,17 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
                                           include=include,
                                           exclude=exclude or ["可搜索"])
     if not quark_data:
-        return {"code": 400, "message": "无法获取 API 数据且缓存不可用",
+        log_print("没有可用的资源（API 无数据或已全部过滤）", "WARNING")
+        return {"code": 404, "message": "API 无匹配资源，请换关键词或用 --include 本地过滤",
                 "total_selected": 0, "save_success_count": 0,
                 "share_success_count": 0, "share_results": [],
                 "preview": preview_only, "items": None}
 
-    pushed_titles = load_pushed_titles()
-    if pushed_titles:
+    pushed_titles, pushed_urls, pushed_normed = load_pushed_records()
+    if pushed_titles or pushed_urls or pushed_normed:
         before = len(quark_data)
         quark_data = [i for i in quark_data
-                      if i.get("note", "") not in pushed_titles]
+                      if not _is_pushed(i, pushed_titles, pushed_urls, pushed_normed)]
         log_print(f"过滤已推送资源 {before - len(quark_data)} 个，剩余 {len(quark_data)} 个", "INFO")
 
     if len(quark_data) < count:
@@ -492,7 +558,7 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
 
             # 上传引流 PDF
             if pdf_path and os.path.exists(pdf_path):
-                _upload_yinliu_pdf(kuake_cli, pdf_path, title, yinliu_subdir)
+                _upload_yinliu_pdf(kuake_cli, pdf_path, title, folder_path)
 
             # 记录历史
             os.makedirs(SHARE_DIR, exist_ok=True)
@@ -540,7 +606,6 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
     kuake_cli = get_kuake_cli(config)
     pdf_path = get_yinliu_pdf(config)
     folder_fid = quark.get("folder_fid", "0") or "0"
-    yinliu_subdir = quark.get("yinliu_subdir", "") or ""
 
     cookie_file = str(CACHE_DIR / "cookies.txt")
 
@@ -561,5 +626,5 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
         pdf_path=pdf_path, quark_cookie=cookie_env, cookie_file=cookie_file,
         kw=kw, include=include, exclude=exclude, preview_only=preview_only,
         selected_items=selected_items, folder_fid=folder_fid,
-        yinliu_subdir=yinliu_subdir, force=force,
+        force=force,
     ))

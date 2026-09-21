@@ -110,12 +110,11 @@ def fetch_api_data(cloud_type, kw="1", force_refresh=False, expire_hours=24.0,
     :param kw: 搜索关键词
     :param force_refresh: 强制刷新
     :param expire_hours: 缓存过期小时（默认 24）
-    :param include/exclude: 关键词过滤（有 filter 时跳过缓存）
+    :param include/exclude: 关键词过滤（本地过滤，不影响缓存）
     """
-    has_filter = bool(include or exclude)
     use_kw = kw if kw else "1"
 
-    use_cache = (not force_refresh) and (not has_filter) and \
+    use_cache = (not force_refresh) and \
                 (not is_cache_expired(cloud_type, expire_hours, use_kw))
     if use_cache:
         cached = load_api_cache(cloud_type, use_kw)
@@ -126,9 +125,6 @@ def fetch_api_data(cloud_type, kw="1", force_refresh=False, expire_hours=24.0,
             return cached
 
     params = {"kw": use_kw, "cloud_types": cloud_type}
-    if include:
-        params["filter"] = json.dumps({"include": include, "exclude": exclude or []},
-                                      ensure_ascii=False)
 
     headers = {
         "accept": "application/json, text/plain, */*",
@@ -147,10 +143,13 @@ def fetch_api_data(cloud_type, kw="1", force_refresh=False, expire_hours=24.0,
             response = requests.get(API_URL, params=params, headers=headers, timeout=30)
             response.raise_for_status()
             data = response.json()
+            if data.get("code") not in (0, None):
+                msg = data.get("message", "未知错误")
+                raise ValueError(f"API 业务错误 code={data.get('code')}: {msg}")
             break
         except Exception as e:
             last_exception = e
-            log_print(f"API 请求失败（第 {attempt} 次）: {str(e)}", "WARNING")
+            log_print(f"API 请求失败（第 {attempt}/{max_retries} 次）: {str(e)}", "WARNING")
             if attempt < max_retries:
                 log_print(f"等待 {retry_interval} 秒后重试...", "INFO")
                 time.sleep(retry_interval)
@@ -165,15 +164,20 @@ def fetch_api_data(cloud_type, kw="1", force_refresh=False, expire_hours=24.0,
             return cached
         return []
 
-    if data.get("code") not in (0, None):
-        log_print(f"API 返回错误: {data.get('message')}", "ERROR")
-        return []
-
     body = data.get("data", {})
     resources = body.get("merged_by_type", {}).get(cloud_type, [])
-    resources = local_filter(resources, include, exclude)
+    api_total = body.get("total", len(resources))
 
     if resources:
         save_api_cache(cloud_type, resources, use_kw)
+
+    resources = local_filter(resources, include, exclude)
+
+    if not resources:
+        log_print(
+            f"API 成功但无匹配资源 [{cloud_type}] kw={use_kw} "
+            f"(API 返回总数: {api_total}, 过滤后: {len(resources)})",
+            "WARNING"
+        )
 
     return resources
