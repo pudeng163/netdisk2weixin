@@ -12,19 +12,17 @@ jobs:
 
       - name: Setup .env from Secrets
         run: |
-          cat > .env <<-'EOF'
-COUNT=6
-CACHE_EXPIRE_HOURS=12
-TARGET_FOLDER=下载
-WECHAT_WEBHOOK_URL=${{ secrets.WECHAT_WEBHOOK_URL }}
-BAIDU_COOKIE=${{ secrets.BAIDU_COOKIE }}
-QUARK_COOKIE=${{ secrets.QUARK_COOKIE }}
-KUAKE_COOKIE=${{ secrets.KUAKE_COOKIE }}
-QUARK_FOLDER_FID=${{ secrets.QUARK_FOLDER_FID }}
-QUARK_YINLIU_PDF=assets/333333.pdf
-QUARK_YINLIU_PROBABILITY=1.0
-QUARK_YINLIU_SUBDIR=自动转存
-EOF
+          echo "COUNT=6" > .env
+          echo "CACHE_EXPIRE_HOURS=12" >> .env
+          echo "TARGET_FOLDER=下载" >> .env
+          echo "WECHAT_WEBHOOK_URL=${{ secrets.WECHAT_WEBHOOK_URL }}" >> .env
+          echo "BAIDU_COOKIE=${{ secrets.BAIDU_COOKIE }}" >> .env
+          echo "QUARK_COOKIE=${{ secrets.QUARK_COOKIE }}" >> .env
+          echo "KUAKE_COOKIE=${{ secrets.KUAKE_COOKIE }}" >> .env
+          echo "QUARK_FOLDER_FID=${{ secrets.QUARK_FOLDER_FID }}" >> .env
+          echo "QUARK_YINLIU_PDF=assets/333333.pdf" >> .env
+          echo "QUARK_YINLIU_PROBABILITY=1.0" >> .env
+          echo "QUARK_YINLIU_SUBDIR=自动转存" >> .env
 
       - name: Setup Python
         uses: actions/setup-python@v5
