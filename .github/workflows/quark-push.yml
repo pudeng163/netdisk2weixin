@@ -1,0 +1,54 @@
+name: Quark Auto Push
+
+on:
+  schedule:
+    - cron: '0 0-13 * * *'
+  workflow_dispatch:
+
+jobs:
+  push:
+    runs-on: [self-hosted, windows]
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .env from Secrets
+        shell: pwsh
+        run: |
+          $lines = @(
+            "COUNT=6",
+            "CACHE_EXPIRE_HOURS=12",
+            "TARGET_FOLDER=下载",
+            "WECHAT_WEBHOOK_URL=${{ secrets.WECHAT_WEBHOOK_URL }}",
+            "BAIDU_COOKIE=${{ secrets.BAIDU_COOKIE }}",
+            "QUARK_COOKIE=${{ secrets.QUARK_COOKIE }}",
+            "KUAKE_COOKIE=${{ secrets.KUAKE_COOKIE }}",
+            "QUARK_FOLDER_FID=${{ secrets.QUARK_FOLDER_FID }}",
+            "QUARK_YINLIU_PDF=assets/333333.pdf",
+            "QUARK_YINLIU_PROBABILITY=1.0",
+            "QUARK_YINLIU_SUBDIR=自动转存"
+          )
+          [System.IO.File]::WriteAllLines(".env", $lines)
+
+      - name: Ensure kuake CLI exists
+        shell: pwsh
+        run: |
+          if (!(Test-Path "assets/bin/kuake-v1.5.0-windows-amd64.exe")) {
+            Write-Error "assets/bin/kuake-v1.5.0-windows-amd64.exe not found. Pre-place it on the runner machine."
+            exit 1
+          }
+          Write-Host "kuake CLI OK: $((Get-Item 'assets/bin/kuake-v1.5.0-windows-amd64.exe').Length) bytes"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Push 6 小学资料
+        run: python main.py quark --count 6 --include 小学 --force
