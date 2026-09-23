@@ -1,5 +1,4 @@
 name: Quark Auto Push
-
 on:
   schedule:
     - cron: '0 0-13 * * *'
@@ -8,10 +7,6 @@ on:
 jobs:
   push:
     runs-on: [self-hosted, windows]
-    defaults:
-      run:
-        working-directory: .
-
     steps:
       - uses: actions/checkout@v4
 
@@ -36,11 +31,13 @@ jobs:
       - name: Ensure kuake CLI exists
         shell: pwsh
         run: |
-          if (!(Test-Path "assets/bin/kuake-v1.5.0-windows-amd64.exe")) {
-            Write-Error "assets/bin/kuake-v1.5.0-windows-amd64.exe not found. Pre-place it on the runner machine."
+          $exePath = "assets/bin/kuake-v1.5.0-windows-amd64.exe"
+          if (!(Test-Path $exePath)) {
+            Write-Error "Missing $exePath. Put this binary on runner machine."
             exit 1
           }
-          Write-Host "kuake CLI OK: $((Get-Item 'assets/bin/kuake-v1.5.0-windows-amd64.exe').Length) bytes"
+          $fileInfo = Get-Item $exePath
+          Write-Host "kuake CLI OK: $($fileInfo.Length) bytes"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -48,7 +45,9 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
+        shell: pwsh
         run: pip install -r requirements.txt
 
       - name: Push 6 小学资料
+        shell: pwsh
         run: python main.py quark --count 6 --include 小学 --force
