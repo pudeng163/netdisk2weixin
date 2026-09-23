@@ -6,38 +6,25 @@ on:
 
 jobs:
   push:
-    runs-on: [self-hosted, windows]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup .env from Secrets
-        shell: pwsh
         run: |
-          $lines = @(
-            "COUNT=6",
-            "CACHE_EXPIRE_HOURS=12",
-            "TARGET_FOLDER=下载",
-            "WECHAT_WEBHOOK_URL=${{ secrets.WECHAT_WEBHOOK_URL }}",
-            "BAIDU_COOKIE=${{ secrets.BAIDU_COOKIE }}",
-            "QUARK_COOKIE=${{ secrets.QUARK_COOKIE }}",
-            "KUAKE_COOKIE=${{ secrets.KUAKE_COOKIE }}",
-            "QUARK_FOLDER_FID=${{ secrets.QUARK_FOLDER_FID }}",
-            "QUARK_YINLIU_PDF=assets/333333.pdf",
-            "QUARK_YINLIU_PROBABILITY=1.0",
-            "QUARK_YINLIU_SUBDIR=自动转存"
-          )
-          [System.IO.File]::WriteAllLines(".env", $lines)
-
-      - name: Ensure kuake CLI exists
-        shell: pwsh
-        run: |
-          $exePath = "assets/bin/kuake-v1.5.0-windows-amd64.exe"
-          if (!(Test-Path $exePath)) {
-            Write-Error "Missing $exePath. Put this binary on runner machine."
-            exit 1
-          }
-          $fileInfo = Get-Item $exePath
-          Write-Host "kuake CLI OK: $($fileInfo.Length) bytes"
+cat > .env << EOF
+COUNT=6
+CACHE_EXPIRE_HOURS=12
+TARGET_FOLDER=下载
+WECHAT_WEBHOOK_URL=${{ secrets.WECHAT_WEBHOOK_URL }}
+BAIDU_COOKIE=${{ secrets.BAIDU_COOKIE }}
+QUARK_COOKIE=${{ secrets.QUARK_COOKIE }}
+KUAKE_COOKIE=${{ secrets.KUAKE_COOKIE }}
+QUARK_FOLDER_FID=${{ secrets.QUARK_FOLDER_FID }}
+QUARK_YINLIU_PDF=assets/333333.pdf
+QUARK_YINLIU_PROBABILITY=1.0
+QUARK_YINLIU_SUBDIR=自动转存
+EOF
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -45,9 +32,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        shell: pwsh
         run: pip install -r requirements.txt
 
       - name: Push 6 小学资料
-        shell: pwsh
         run: python main.py quark --count 6 --include 小学 --force
