@@ -65,23 +65,19 @@ def extract_links(text):
 
 async def _save_and_share_quark(url, password, folder_fid, kuake_cli, pdf_path="",
                                 folder_path=""):
-    from adapters.quark import QuarkPanFileManager, QuarkLogin, _upload_yinliu_pdf
+    from adapters.quark import QuarkPanFileManager
     config = load_config()
-    quark = config["quark"]
-    cookie_env = quark.get("cookie", "")
-    cookie_file = str(config.get("cache_dir", "data")) + "/cookies.txt"
+    quark_cookie = config["quark"].get("cookie", "")
 
-    if not cookie_env:
-        login = QuarkLogin(cookie_file=cookie_file)
-        if login.check_cookies() is None:
-            raise RuntimeError("夸克未配置 Cookie")
+    if not quark_cookie:
+        raise RuntimeError("夸克未配置 Cookie（请在 .env 填写 QUARK_COOKIE）")
 
     if password and "pwd=" not in url:
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}pwd={password}"
 
     manager = QuarkPanFileManager(headless=False, slow_mo=500,
-                                  cookie=cookie_env, cookie_file=cookie_file)
+                                  cookie=quark_cookie)
 
     save_result = await manager.run(url.strip(), folder_fid)
     if save_result is None:

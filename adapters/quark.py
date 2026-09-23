@@ -295,7 +295,7 @@ class QuarkPanFileManager:
 
         stoken = await self.get_stoken(pwd_id, password)
         if not stoken:
-            raise ValueError("获取 stoken 失败")
+            raise ValueError("获取 stoken 失败（链接可能已失效或分享者被封）")
 
         is_owner, data_list = await self.get_detail(pwd_id, stoken)
         if not data_list:
@@ -307,10 +307,12 @@ class QuarkPanFileManager:
 
         fid_list = [i["fid"] for i in data_list]
         share_fid_token_list = [i["share_fid_token"] for i in data_list]
-        task_id = await self.get_share_save_task_id(pwd_id, stoken, fid_list,
-                                                    share_fid_token_list,
-                                                    to_pdir_fid=folder_id)
-        return await self.submit_task(task_id)
+        task_id_resp = await self.get_share_save_task_id(
+            pwd_id, stoken, fid_list, share_fid_token_list, to_pdir_fid=folder_id
+        )
+        if not isinstance(task_id_resp, str):
+            raise ValueError(f"获取转存任务失败: {task_id_resp}")
+        return await self.submit_task(task_id_resp)
 
     async def get_share_save_task_id(self, pwd_id, stoken, first_ids,
                                      share_fid_tokens, to_pdir_fid="0"):
@@ -324,7 +326,12 @@ class QuarkPanFileManager:
             timeout = httpx.Timeout(60.0, connect=60.0)
             response = await client.post(url, json=data, headers=self.headers,
                                          params=params, timeout=timeout)
-            return response.json()["data"]["task_id"]
+            j = response.json()
+            d = j.get("data") or {}
+            tid = d.get("task_id")
+            if not tid:
+                raise ValueError(f"创建转存任务失败: code={j.get('code')} msg={j.get('message')}")
+            return tid
 
     async def submit_task(self, task_id, retry=10):
         for i in range(retry):
@@ -462,12 +469,12 @@ def _upload_yinliu_pdf(kuake_cli, pdf_path, title, folder_path=""):
 # 统一入口
 # ---------------------------------------------------------------------------
 async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
-                                quark_cookie, cookie_file, kw=None,
+                                quark_cookie, kw=None,
                                 include=None, exclude=None, preview_only=False,
                                 selected_items=None, folder_fid="0",
                                 force=False):
     manager = QuarkPanFileManager(headless=False, slow_mo=500,
-                                  cookie=quark_cookie, cookie_file=cookie_file)
+                                  cookie=quark_cookie)
 
     folder_path = _resolve_fid_to_path(kuake_cli, folder_fid)
 
@@ -515,7 +522,11 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
             result = await manager.run(url.strip(), folder_fid)
             if result is None:
                 raise ValueError("转存结果为空（可能已存在或未返回任务）")
-            file_ids = result["data"]["save_as"]["save_as_top_fids"]
+            d = result.get("data") if isinstance(result, dict) else None
+            save_as = (d or {}).get("save_as") if d else None
+            file_ids = (save_as or {}).get("save_as_top_fids") if save_as else None
+            if not file_ids:
+                raise ValueError(f"转存返回异常结构: {json.dumps(result, ensure_ascii=False)[:200]}")
             save_results.append({"index": index + 1, "url": url, "note": note,
                                  "status": "success", "result": result,
                                  "file_id": file_ids})
@@ -599,7 +610,7 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
     """夸克网盘转存分享主流程（统一接口，同步封装）。"""
     config = load_config()
     quark = config["quark"]
-    cookie_env = quark.get("cookie", "")
+    quark_cookie = quark.get("cookie", "")
     if count is None:
         count = quark.get("count") or config["count"]
     webhook_url = config.get("wechat", {}).get("webhook_url", "")
@@ -607,23 +618,17 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
     pdf_path = get_yinliu_pdf(config)
     folder_fid = quark.get("folder_fid", "0") or "0"
 
-    cookie_file = str(CACHE_DIR / "cookies.txt")
-
-    # 提前校验登录态：无 cookie 且无 cookie 文件时，优雅返回而不是触发浏览器登录
-    if not cookie_env:
-        login = QuarkLogin(cookie_file=cookie_file)
-        if login.check_cookies() is None:
-            log_print("未配置夸克 Cookie，且无已保存的登录态，跳过执行", "WARNING")
-            return {"code": 400,
-                    "message": "未配置夸克 Cookie（请在 config.yaml 填写，"
-                               "或运行一次浏览器登录生成 cookies.txt）",
-                    "total_selected": count, "save_success_count": 0,
-                    "share_success_count": 0, "share_results": [],
-                    "wechat_result": None, "preview": preview_only, "items": None}
+    if not quark_cookie:
+        log_print("未配置夸克 Cookie，跳过执行", "WARNING")
+        return {"code": 400,
+                "message": "未配置夸克 Cookie（请在 .env 填写 QUARK_COOKIE）",
+                "total_selected": count, "save_success_count": 0,
+                "share_success_count": 0, "share_results": [],
+                "wechat_result": None, "preview": preview_only, "items": None}
 
     return asyncio.run(_batch_save_and_share(
         count=count, webhook_url=webhook_url, kuake_cli=kuake_cli,
-        pdf_path=pdf_path, quark_cookie=cookie_env, cookie_file=cookie_file,
+        pdf_path=pdf_path, quark_cookie=quark_cookie,
         kw=kw, include=include, exclude=exclude, preview_only=preview_only,
         selected_items=selected_items, folder_fid=folder_fid,
         force=force,

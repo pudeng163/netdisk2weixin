@@ -12,7 +12,7 @@ import json
 import os
 import re
 import time
-import requests
+import httpx
 from .logger import log_print
 from .config import CACHE_DIR
 
@@ -140,9 +140,10 @@ def fetch_api_data(cloud_type, kw="1", force_refresh=False, expire_hours=24.0,
     for attempt in range(1, max_retries + 1):
         try:
             log_print(f"请求 API [{cloud_type}] kw={use_kw}（第 {attempt}/{max_retries} 次）...")
-            response = requests.get(API_URL, params=params, headers=headers, timeout=30)
-            response.raise_for_status()
-            data = response.json()
+            with httpx.Client(timeout=30, follow_redirects=True) as client:
+                response = client.get(API_URL, params=params, headers=headers)
+                response.raise_for_status()
+                data = response.json()
             if data.get("code") not in (0, None):
                 msg = data.get("message", "未知错误")
                 raise ValueError(f"API 业务错误 code={data.get('code')}: {msg}")

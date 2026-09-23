@@ -37,59 +37,69 @@ pip install -r requirements.txt
 
 ## 2. 配置（重要）
 
-### 2.1 准备配置文件
+### 2.1 唯一配置文件
+
+所有配置统一写在项目根目录的 **`.env`** 文件里，没有其他配置文件（`kuake-v1.5.0-windows-amd64.exe` 自身的二进制配置除外，它也读同一份 `.env`）。
 
 ```bash
-# 项目里已有 config.yaml（含 Cookie），如果还没有，从样例复制一份：
-cp config.example.yaml config.yaml
+# 从样例复制一份：
+cp .env.example .env
 ```
 
-### 2.2 编辑 `config.yaml`
+### 2.2 编辑 `.env`
 
-```yaml
-# 全局默认
-count: 5                    # 每次转存资源数量（可被各平台覆盖）
-cache_expire_hours: 24      # API 缓存过期小时
-target_folder: 转存资源     # 百度网盘目标文件夹
+```env
+# ====== 全局默认 ======
+COUNT=5                  # 每次转存资源数量（可被各平台覆盖）
+CACHE_EXPIRE_HOURS=24    # API 缓存过期小时
+TARGET_FOLDER=转存资源    # 百度网盘目标文件夹
 
-wechat:
-  webhook_url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=你的key"
+# ====== 企业微信机器人 ======
+WECHAT_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=你的key
 
-baidu:
-  cookie: "你的百度网盘Cookie"   # 必填，转存百度才需要
+# ====== 百度网盘 ======
+BAIDU_COOKIE=            # 必填，转存百度才需要
+# BAIDU_COUNT=           # 留空则用全局 COUNT
+# BAIDU_TARGET_FOLDER=   # 留空则用全局 TARGET_FOLDER
 
-quark:
-  cookie: ""                  # 夸克 Cookie，可选（见下面 2.4）
-  # kuake_cli: ""             # 留空自动识别系统（Windows/Linux），自定义路径则原样使用
-  folder_fid: "0"              # 转存目标文件夹 fid，"0" = 根目录
-  yinliu_pdf: "assets/333333.pdf"
-  yinliu_subdir: "自动转存"    # 引流 PDF 上传到 /{yinliu_subdir}/{title}/333333.pdf
-  yinliu_probability: 0.0      # 引流文件添加概率 0~1
+# ====== 夸克网盘 ======
+QUARK_COOKIE=            # Python 主流程用的夸克 Cookie
+KUAKE_COOKIE=            # kuake CLI 专用（填和 QUARK_COOKIE 相同的值即可）
+# QUARK_COUNT=           # 留空则用全局 COUNT
+# QUARK_KUAKE_CLI=       # 留空则自动选系统默认路径，换版本时自定义
+QUARK_FOLDER_FID=0       # 转存目标文件夹 fid，"0" = 根目录
+QUARK_YINLIU_PDF=assets/333333.pdf
+QUARK_YINLIU_PROBABILITY=0.0
+QUARK_YINLIU_SUBDIR=自动转存
 ```
-
-> **兼容旧项目 `.env`**：也支持用 `.env` 配置（字段名 `COOKIE`、`QUARK_COOKIES`、`WEBHOOK_URL` 等），环境变量优先级高于 yaml。但推荐统一用 `config.yaml`。
 
 ### 2.3 获取百度 Cookie
 
 1. 浏览器**无痕模式**打开 [pan.baidu.com](https://pan.baidu.com) 并登录
 2. 按 F12 → Network 面板
 3. 刷新页面，点任意请求，复制请求头里的 `Cookie` 整个值
-4. 粘贴到 `config.yaml` 的 `baidu.cookie`
+4. 粘贴到 `.env` 的 `BAIDU_COOKIE=`
 
 > ⚠️ 如果转存时报错 `-6`，说明 Cookie 已失效或非无痕环境获取，重新用无痕模式抓一份即可。
 
-### 2.4 获取夸克 Cookie（三选一）
+### 2.4 获取夸克 Cookie
 
-**方式 A — 填 config.yaml**（推荐，最省事）：
-把夸克 Cookie 字符串填到 `quark.cookie`。
+夸克 Cookie **要同时填两个字段**：`QUARK_COOKIE` 和 `KUAKE_COOKIE`，值完全相同。
 
-**方式 B — 浏览器登录自动保存**：
-`quark.cookie` 留空，运行时会弹出浏览器让你登录，登录态自动保存到
-`data/cache/cookies.txt`。
+1. 浏览器打开 [pan.quark.cn](https://pan.quark.cn) 并登录
+2. 按 F12 → Network 面板
+3. 刷新页面，点任意请求（比如 `sharepage/token`），复制请求头里的 `Cookie` 整个字符串
+4. 粘贴到 `.env`：
+   ```
+   QUARK_COOKIE=__sdid=...; isg=...; ...
+   KUAKE_COOKIE=__sdid=...; isg=...; ...
+   ```
 
-**方式 C — 手动放 cookies.txt**：
-把旧的夸克 `cookies.txt`（`cookie` 字符串或 JSON 数组格式都行）复制到
-`netdisk2weixin/data/cache/cookies.txt`。
+> 两个字段用途不同：
+> - `QUARK_COOKIE` — Python 主流程用 httpx 调夸克 API（转存、分享）
+> - `KUAKE_COOKIE` — `kuake-v1.5.0-*.exe` CLI 用（引流 PDF 上传、fid 转路径）
+>
+> Cookie 刷新时记得**两个一起更新**。
 
 ### 2.5 kuake CLI（夸克网盘命令行工具）
 
@@ -100,20 +110,18 @@ quark:
 | Windows | `assets/bin/kuake-v1.5.0-windows-amd64.exe` |
 | Linux | `assets/bin/kuake-v1.5.0-linux-amd64` |
 
-如果要换自定义版本，在 `config.yaml` 填 `quark.kuake_cli: "你的路径"` 即可，自定义路径不会被覆盖。
+如果要换自定义版本，在 `.env` 填 `QUARK_KUAKE_CLI=你的路径` 即可。
 
 **kuake CLI 用途：** 上传引流 PDF 到网盘（比 API 上传文件快，且不依赖浏览器登录态）。
 
-**首次使用需登录：**
-```bash
-# Windows
-.\assets\bin\kuake-v1.5.0-windows-amd64.exe login
+**CLI 认证方式：** 读取同目录下 `.env` 里的 `KUAKE_COOKIE`（v1.5.0 不再用 config.json）。
+可以直接测试是否生效：
 
-# Linux
-./assets/bin/kuake-v1.5.0-linux-amd64 login
+```bash
+.\assets\bin\kuake-v1.5.0-windows-amd64.exe user
 ```
 
-登录后凭证存在 `~/.config/kuake/`，CLI 会自动复用。
+返回 `success: true` 就是通的。
 
 ---
 
@@ -182,7 +190,7 @@ python main.py web
 缓存文件：data/cache/api_cache_{cloud_type}_{kw_safe}.json
           例：api_cache_quark_小学资料.json
           例：api_cache_baidu_1.json
-过期时间：默认 24 小时（config.yaml 的 cache_expire_hours）
+过期时间：默认 24 小时（.env 的 CACHE_EXPIRE_HOURS）
 缓存内容：{timestamp, expire_at, data, count}
 
 请求流程：
@@ -212,7 +220,7 @@ python main.py web
 
 ### 4.1 转存目标
 
-在 `config.yaml` 配置 `quark.folder_fid`：
+在 `.env` 配置 `QUARK_FOLDER_FID`：
 
 | 值 | 含义 |
 |---|---|
@@ -234,14 +242,14 @@ python main.py web
 
 ### 4.3 引流 PDF 上传路径
 
-由 `quark.yinliu_subdir` 控制。设为 `"自动转存"` 时，PDF 上传路径为：
+由 `QUARK_YINLIU_SUBDIR` 控制。设为 `"自动转存"` 时，PDF 上传路径为：
 
 ```
 /{yinliu_subdir}/{title}/333333.pdf
 例：/自动转存/小树老师《小学数学课程合集》.../333333.pdf
 ```
 
-> 注意：kuake CLI 上传时如果父目录不存在会自动创建，所以 `yinliu_subdir` 可以随便设。
+> 注意：kuake CLI 上传时如果父目录不存在会自动创建，所以 `QUARK_YINLIU_SUBDIR` 可以随便设。
 
 ---
 
@@ -250,13 +258,13 @@ python main.py web
 ```
 netdisk2weixin/
 ├── main.py              # 统一入口
-├── config.yaml          # 你的配置（已 gitignore，含 Cookie）
-├── config.example.yaml  # 配置样例
+├── .env                 # 唯一配置文件（已 gitignore，含 Cookie）
+├── .env.example         # 配置样例
 ├── adapters/
 │   ├── baidu.py         # 百度网盘适配器
 │   └── quark.py         # 夸克网盘适配器
 ├── core/
-│   ├── config.py        # 配置加载（支持 yaml + .env）
+│   ├── config.py        # 配置加载（只从 .env 读）
 │   ├── cache.py         # API 缓存 + 本地过滤 + 重试
 │   ├── notifier.py      # 企业微信推送
 │   └── logger.py        # 日志（Windows GBK 安全输出）
@@ -266,10 +274,11 @@ netdisk2weixin/
 ├── assets/
 │   ├── 333333.pdf       # 夸克引流文件
 │   └── bin/             # kuake CLI（Windows + Linux 两个版本）
+│       ├── config.json  # CLI 历史遗留配置（已不用，CLI 读 .env）
 │       ├── kuake-v1.5.0-windows-amd64.exe
 │       └── kuake-v1.5.0-linux-amd64
 └── data/                # 运行时数据（自动生成）
-    ├── cache/           # API 缓存、夸克 cookies.txt
+    ├── cache/           # API 缓存
     ├── logs/            # 运行日志
     └── share/           # 分享链接历史记录
 ```
@@ -279,35 +288,48 @@ netdisk2weixin/
 ## 6. 常见问题
 
 **Q：报「未配置夸克 Cookie」？**
-按上面 2.4 任选一种方式配置。
+在 `.env` 填写 `QUARK_COOKIE=`。如果 kuake CLI 也报 `KUAKE_COOKIE is not set`，再填 `KUAKE_COOKIE=`（和前者填相同的值）。
 
 **Q：百度报错误码 `-6`？**
 Cookie 失效或非无痕环境获取，重新抓一份。
 
 **Q：转存数量想改？**
-改 `config.yaml` 的 `count`，或命令行 `--count N`。
+改 `.env` 的 `COUNT=`，或命令行 `--count N`。
 
 **Q：Cookie 会泄露到 git 吗？**
-不会。`config.yaml`、`.env`、`data/` 都已在 `.gitignore`。
+不会。`.env`、`data/` 都已在 `.gitignore`。
 
 **Q：想定时自动跑？**
-可以配合系统的 cron / Windows 任务计划，例如每天 8 点跑一次：
+可以配合系统的 cron / Windows 任务计划，例如每小时跑一次：
 ```bash
 # Linux cron
-0 8 * * * cd /path/to/netdisk2weixin && python3 main.py all >> data/logs/cron.log 2>&1
+0 * * * * cd /path/to/netdisk2weixin && python3 main.py quark --count 6 >> data/logs/cron.log 2>&1
 
 # Windows 任务计划（PowerShell）
-python main.py quark --include 小学 --count 5
+python main.py quark --include 小学 --count 6
 ```
 
-**Q：Windows 上引流 PDF 上传失败？**
-确认 kuake CLI 是 Windows 版（项目会自动选），且已执行过 `.\assets\bin\kuake-v1.5.0-windows-amd64.exe login` 登录。
+**Q：Windows 上引流 PDF 上传失败 / 报 `KUAKE_COOKIE is not set`？**
+v1.5.0 的 kuake CLI **不再读 `assets/bin/config.json`**，它要读项目根目录 `.env` 里的 `KUAKE_COOKIE`。确认 `.env` 里有这一行：
+```
+KUAKE_COOKIE=你的完整cookie字符串
+```
+然后用 `.\assets\bin\kuake-v1.5.0-windows-amd64.exe user` 测试，返回 `success: true` 即生效。
 
 **Q：API 一直超时 / 400？**
 重试机制会自动跑 3 次每次等 6 秒。全部失败后会回退到缓存（如果有）。中文 `--kw` 参数很多 API 不支持，改用 `--include` 本地过滤即可。
 
 **Q：怎么找夸克文件夹的 fid？**
-浏览器打开夸克网盘，进入目标文件夹，URL 里会有 `fid=xxxxxx` 之类的参数，或者用 kuake CLI 的 `list` 命令查看。
+浏览器打开夸克网盘，进入目标文件夹，URL 里会有 `fid=xxxxxx` 之类的参数，或者用 kuake CLI：
+```bash
+.\assets\bin\kuake-v1.5.0-windows-amd64.exe list /
+```
+
+**Q：kuake CLI 版本想换？**
+替换 `assets/bin/` 下对应平台的二进制文件名（保持 `kuake-v1.5.0-windows-amd64.exe` / `kuake-v1.5.0-linux-amd64` 命名），或者在 `.env` 填 `QUARK_KUAKE_CLI=D:/tools/你的版本.exe` 指定自定义路径。
+
+**Q：`.env` 里 QUARK_COOKIE 和 KUAKE_COOKIE 为什么要填两次？**
+两个程序读的字段名不同：Python 主流程读 `QUARK_COOKIE`，kuake CLI 读 `KUAKE_COOKIE`（这是 CLI 自身的字段约定，`--help` 里写明了）。两个值完全相同，是同一份 cookie 字符串。
 
 ---
 
