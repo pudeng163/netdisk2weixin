@@ -39,4 +39,4 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Push 6 小学资料
-        run: python main.py quark --count 6 --include 小学 --force
+        run: python main.py quark --count 6  --force
