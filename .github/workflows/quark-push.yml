@@ -12,7 +12,7 @@ jobs:
 
       - name: Setup .env from Secrets
         run: |
-          cat > .env << EOF
+          cat > .env <<-'EOF'
 COUNT=6
 CACHE_EXPIRE_HOURS=12
 TARGET_FOLDER=下载
@@ -30,6 +30,7 @@ EOF
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Cache Python dependencies
         uses: actions/cache@v4
         with:
