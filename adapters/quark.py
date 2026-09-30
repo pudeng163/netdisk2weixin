@@ -460,7 +460,8 @@ def _upload_yinliu_pdf(kuake_cli, pdf_path, title, folder_path=""):
         log_print(f"引流 PDF 不存在，跳过上传: {pdf_path}", "WARNING")
         return
     prefix = folder_path or ""
-    cmd = f'{kuake_cli} upload "{pdf_path}" "{prefix}/{title}/333333.pdf"'
+    pdf_filename = os.path.basename(pdf_path)
+    cmd = f'{kuake_cli} upload "{pdf_path}" "{prefix}/{title}/{pdf_filename}"'
     log_print(f"执行: {cmd}", "DEBUG")
     os.system(cmd)
 

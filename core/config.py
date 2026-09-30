@@ -52,7 +52,7 @@ def load_config():
     quark_count = _get("QUARK_COUNT", None, int)
     quark_kuake_cli = _get("QUARK_KUAKE_CLI", "")
     quark_folder_fid = _get("QUARK_FOLDER_FID", "0") or "0"
-    quark_yinliu_pdf = _get("QUARK_YINLIU_PDF", "assets/333333.pdf")
+    quark_yinliu_pdf = _get("QUARK_YINLIU_PDF", "assets/99999.pdf")
     quark_yinliu_prob = _get("QUARK_YINLIU_PROBABILITY", 0.0, float)
     quark_yinliu_subdir = _get("QUARK_YINLIU_SUBDIR", "自动转存")
 

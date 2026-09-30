@@ -72,9 +72,9 @@ def main():
                         help="从文件读取文本进行链接替换")
     parser.add_argument("--output", type=str, default=None,
                         help="替换后的文本输出到文件（不指定则打印到控制台）")
-    parser.add_argument("--save-history", action="store_true", default=False,
+    parser.add_argument("--save-history", action="store_true", default=True,
                         help="文本替换结果也写入推送历史")
-    parser.add_argument("--push-wechat", action="store_true", default=False,
+    parser.add_argument("--push-wechat", action="store_true", default=True,
                         help="替换后推送企业微信（摘要 + 完整文本）")
     args = parser.parse_args()
 

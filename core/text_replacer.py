@@ -65,7 +65,7 @@ def extract_links(text):
 
 async def _save_and_share_quark(url, password, folder_fid, kuake_cli, pdf_path="",
                                 folder_path=""):
-    from adapters.quark import QuarkPanFileManager
+    from adapters.quark import QuarkPanFileManager, _upload_yinliu_pdf
     config = load_config()
     quark_cookie = config["quark"].get("cookie", "")
 
