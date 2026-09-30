@@ -2,7 +2,7 @@ name: Quark Auto Push
 
 on:
   schedule:
-    - cron: '0 0-13 * * *'
+    - cron: '11 0-13 * * *'
   workflow_dispatch:
 
 jobs:
@@ -50,5 +50,5 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Push 6 小学资料
-        run: python main.py quark --count 6 --include 小学 --force
+      - name: Push 8 除了短剧
+        run: python main.py quark --count 8 --exclude 短剧
