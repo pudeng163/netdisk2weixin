@@ -192,6 +192,8 @@ async def run_from_text(text, save_results=False, push_wechat=False):
 
         try:
             log_print(f"\n--- 处理 {i+1}/{len(links)}: [{platform}] {original_url[:60]} ---")
+            title = ""
+            size = ""
             if platform == "quark":
                 result = await _save_and_share_quark(
                     original_url, password, folder_fid, kuake_cli,
@@ -199,12 +201,16 @@ async def run_from_text(text, save_results=False, push_wechat=False):
                 )
                 sr = result["share_result"]
                 new_url = sr.get("share_url", "")
-                log_print(f"夸克转存+分享成功: {sr.get('title', '')}", "SUCCESS")
+                title = sr.get("title", "")
+                size = sr.get("size", "")
+                log_print(f"夸克转存+分享成功: {title}", "SUCCESS")
             elif platform == "baidu":
                 result = _save_and_share_baidu(original_url, password, baidu_target)
                 sr = result["share_result"]
                 if isinstance(sr, dict):
                     new_url = sr.get("url", "")
+                    title = sr.get("title", "")
+                    size = sr.get("size", "")
                 elif isinstance(sr, str):
                     new_url = sr
                 log_print(f"百度转存+分享成功", "SUCCESS")
@@ -228,6 +234,8 @@ async def run_from_text(text, save_results=False, push_wechat=False):
             "original_url": original_url,
             "password": password,
             "new_url": new_url,
+            "title": title,
+            "size": size,
             "status": "success" if new_url else "error",
             "message": error_msg,
         })
@@ -284,6 +292,27 @@ async def run_from_text(text, save_results=False, push_wechat=False):
         else:
             log_print("未配置 webhook_url，跳过企业微信推送", "WARNING")
 
+    feishu_result = None
+    fs_cfg = config.get("feishu", {})
+    if fs_cfg.get("enabled") and success_count > 0:
+        try:
+            from core.feishu_client import batch_write_resources
+            feishu_items = []
+            for r in results:
+                if r["status"] == "success" and r.get("new_url"):
+                    feishu_items.append({
+                        "name": r.get("title") or f"{r.get('platform','?')}_{r.get('index','?')}",
+                        "url": r["new_url"],
+                        "size": r.get("size", ""),
+                        "tag": r.get("platform", ""),
+                        "search": r.get("title") or "",
+                        "update_time": time.strftime("%Y-%m-%d"),
+                    })
+            if feishu_items:
+                feishu_result = batch_write_resources(config, feishu_items)
+        except Exception as e:
+            log_print(f"飞书写入异常: {e}", "ERROR")
+
     return {
         "code": 200 if success_count > 0 else 400,
         "message": f"成功 {success_count}/{len(results)}",
@@ -292,4 +321,5 @@ async def run_from_text(text, save_results=False, push_wechat=False):
         "replaced_text": new_text,
         "results": results,
         "wechat_result": wechat_result,
+        "feishu_result": feishu_result,
     }

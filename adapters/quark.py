@@ -452,16 +452,21 @@ def _resolve_fid_to_path(kuake_cli, folder_fid):
     return ""
 
 
-def _upload_yinliu_pdf(kuake_cli, pdf_path, title, folder_path=""):
+def _upload_yinliu_pdf(kuake_cli, pdf_path, title="", folder_path=""):
     if not kuake_cli or not os.path.exists(kuake_cli):
         log_print(f"kuake 可执行文件不存在，跳过引流文件上传: {kuake_cli}", "WARNING")
         return
     if not os.path.exists(pdf_path):
         log_print(f"引流 PDF 不存在，跳过上传: {pdf_path}", "WARNING")
         return
-    prefix = folder_path or ""
+    if title and folder_path:
+        prefix = folder_path.rstrip("/") + "/" + title
+    elif title:
+        prefix = "/" + title
+    else:
+        prefix = folder_path or ""
     pdf_filename = os.path.basename(pdf_path)
-    cmd = f'{kuake_cli} upload "{pdf_path}" "{prefix}/{title}/{pdf_filename}"'
+    cmd = f'{kuake_cli} upload "{pdf_path}" "{prefix}/{pdf_filename}"'
     log_print(f"执行: {cmd}", "DEBUG")
     os.system(cmd)
 
@@ -593,6 +598,31 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
         else:
             wechat_result = send_wechat_notification(webhook_url, [], kw, failed=True)
 
+    feishu_result = None
+    try:
+        config = load_config()
+    except Exception:
+        config = {}
+    fs_cfg = config.get("feishu", {})
+    if fs_cfg.get("enabled") and share_success_count > 0:
+        try:
+            from core.feishu_client import batch_write_resources
+            feishu_items = []
+            for r in share_results:
+                if isinstance(r, dict) and r.get("share_url"):
+                    feishu_items.append({
+                        "name": r.get("title") or r.get("note", ""),
+                        "url": r["share_url"],
+                        "size": r.get("size", ""),
+                        "tag": "夸克",
+                        "search": r.get("title") or r.get("note", ""),
+                        "update_time": time.strftime("%Y-%m-%d"),
+                    })
+            if feishu_items:
+                feishu_result = batch_write_resources(config, feishu_items)
+        except Exception as e:
+            log_print(f"飞书写入异常: {e}", "ERROR")
+
     return {
         "code": 200,
         "message": "批量转存分享操作完成",
@@ -601,6 +631,7 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
         "share_success_count": share_success_count,
         "share_results": share_results,
         "wechat_result": wechat_result,
+        "feishu_result": feishu_result,
         "preview": preview_only,
         "items": None,
     }

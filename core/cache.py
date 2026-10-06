@@ -18,7 +18,7 @@ from .config import CACHE_DIR
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-API_URL = "https://so.252035.xyz/api/search"
+API_URL = "http://localhost:8888/api/search"
 
 
 def _safe_kw(kw: str) -> str:

@@ -77,6 +77,13 @@ def load_config():
             "yinliu_probability": quark_yinliu_prob,
             "yinliu_subdir": quark_yinliu_subdir,
         },
+        "feishu": {
+            "enabled": _get("FEISHU_ENABLED", False, lambda v: v.lower() in ("1", "true", "yes")),
+            "app_id": _get("FEISHU_APP_ID", ""),
+            "app_secret": _get("FEISHU_APP_SECRET", ""),
+            "wiki_node_token": _get("FEISHU_WIKI_NODE_TOKEN", ""),
+            "table_id": _get("FEISHU_TABLE_ID", ""),
+        },
     }
     return config
 
