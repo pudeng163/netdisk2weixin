@@ -353,7 +353,7 @@ class QuarkPanFileManager:
         raise ValueError("提交转存任务超时")
 
     async def get_share_task_id(self, fid, file_name, url_type=1,
-                                expired_type=2, password=""):
+                                expired_type=1, password=""):
         data = {"fid_list": fid, "title": file_name, "url_type": url_type,
                 "expired_type": expired_type}
         if url_type == 2:
@@ -406,7 +406,7 @@ class QuarkPanFileManager:
             return share_url, title, size
 
     async def share_run(self, share_fid, folder_id=None, url_type=1,
-                        expired_type=2, password="", traverse_depth=2):
+                        expired_type=1, password="", traverse_depth=2):
         try:
             self.folder_id = folder_id
             pwd_id = share_fid
@@ -779,7 +779,7 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
             delay = random.random() * 4
             time.sleep(delay)
             result = await manager.share_run(file_id, folder_id=folder_fid,
-                                             url_type=1, expired_type=4,
+                                             url_type=1, expired_type=1,
                                              password="", traverse_depth=0)
             if isinstance(result, dict):
                 result["index"] = save_result["index"]
