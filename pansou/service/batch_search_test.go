@@ -1,0 +1,317 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestBatchSearchOutcomeCacheTTL(t *testing.T) {
+	full := 60 * time.Minute
+	partial := 3 * time.Minute
+	errBoom := errors.New("boom")
+
+	cases := []struct {
+		name        string
+		submitted   []string
+		observed    map[string]error
+		wantTTL     time.Duration
+		wantWrite   bool
+		wantMissing int
+	}{
+		{
+			name:      "全部成功写完整TTL",
+			submitted: []string{"a", "b"},
+			observed:  map[string]error{"a": nil, "b": nil},
+			wantTTL:   full,
+			wantWrite: true,
+		},
+		{
+			// 对照实验语义：这条用例原先断言 wantTTL=partial。改成 full 是刻意的行为变更，
+			// 依据见 cacheTTL 的注释（"有超时"在插件路径是常态，短 TTL 换来的收益实测约为零，
+			// 代价是 0.2 秒与 30 秒之间的延迟不确定）。wantMissing 仍然必须为 1——
+			// 超时本身照旧要统计，只是不再决定 TTL。
+			name:        "有任务超时未返回仍写完整TTL（本轮变更）",
+			submitted:   []string{"a", "b", "c"},
+			observed:    map[string]error{"a": nil, "b": nil},
+			wantTTL:     full,
+			wantWrite:   true,
+			wantMissing: 1,
+		},
+		{
+			name:      "部分失败但无超时仍写完整TTL",
+			submitted: []string{"a", "b"},
+			observed:  map[string]error{"a": nil, "b": errBoom},
+			wantTTL:   full,
+			wantWrite: true,
+		},
+		{
+			name:      "全部失败不写缓存",
+			submitted: []string{"a", "b"},
+			observed:  map[string]error{"a": errBoom, "b": errBoom},
+			wantTTL:   0,
+			wantWrite: false,
+		},
+		{
+			name:        "全部超时未返回不写缓存",
+			submitted:   []string{"a", "b"},
+			observed:    map[string]error{},
+			wantTTL:     0,
+			wantWrite:   false,
+			wantMissing: 2,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			o := newBatchSearchOutcome(len(c.submitted))
+			for id, err := range c.observed {
+				o.observe(id, err, 10*time.Millisecond)
+			}
+			o.finalize(c.submitted)
+
+			if got := o.timedOut(); got != c.wantMissing {
+				t.Errorf("timedOut() = %d, 期望 %d", got, c.wantMissing)
+			}
+			ttl, write := o.cacheTTL(full, partial)
+			if write != c.wantWrite {
+				t.Errorf("cacheTTL 写缓存 = %v, 期望 %v", write, c.wantWrite)
+			}
+			if write && ttl != c.wantTTL {
+				t.Errorf("cacheTTL TTL = %v, 期望 %v", ttl, c.wantTTL)
+			}
+		})
+	}
+}
+
+func TestBatchSearchOutcomeShouldBackfill(t *testing.T) {
+	cases := []struct {
+		name      string
+		enabled   bool
+		submitted []string
+		observed  map[string]error
+		want      bool
+	}{
+		{
+			name:      "少量超时值得补齐",
+			enabled:   true,
+			submitted: []string{"a", "b", "c", "d", "e", "f"},
+			observed:  map[string]error{"a": nil, "b": nil, "c": nil, "d": nil, "e": nil},
+			want:      true,
+		},
+		{
+			name:      "超时占比超过三分之一则放弃",
+			enabled:   true,
+			submitted: []string{"a", "b", "c"},
+			observed:  map[string]error{"a": nil},
+			want:      false,
+		},
+		{
+			name:      "开关关闭时不补齐",
+			enabled:   false,
+			submitted: []string{"a", "b", "c", "d"},
+			observed:  map[string]error{"a": nil, "b": nil, "c": nil},
+			want:      false,
+		},
+		{
+			name:      "没有成功项时不补齐",
+			enabled:   true,
+			submitted: []string{"a", "b"},
+			observed:  map[string]error{},
+			want:      false,
+		},
+		{
+			name:      "全部成功时不需要补齐",
+			enabled:   true,
+			submitted: []string{"a", "b"},
+			observed:  map[string]error{"a": nil, "b": nil},
+			want:      false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			o := newBatchSearchOutcome(len(c.submitted))
+			for id, err := range c.observed {
+				o.observe(id, err, 10*time.Millisecond)
+			}
+			o.finalize(c.submitted)
+
+			if got := o.shouldBackfill(c.enabled); got != c.want {
+				t.Errorf("shouldBackfill() = %v, 期望 %v", got, c.want)
+			}
+		})
+	}
+}
+
+func TestBatchSearchOutcomeFinalizeKeepsSubmittedOrder(t *testing.T) {
+	submitted := []string{"c1", "c2", "c3", "c4"}
+	o := newBatchSearchOutcome(len(submitted))
+	o.observe("c3", nil, 10*time.Millisecond)
+	o.observe("c1", nil, 10*time.Millisecond)
+	o.finalize(submitted)
+
+	missing := o.missingIDs()
+	if len(missing) != 2 || missing[0] != "c2" || missing[1] != "c4" {
+		t.Errorf("missingIDs() = %v, 期望 [c2 c4]", missing)
+	}
+	if o.complete() {
+		t.Error("有超时未完成时 complete() 应为 false")
+	}
+}
+
+func TestBatchSearchOutcomeComplete(t *testing.T) {
+	submitted := []string{"a", "b"}
+	o := newBatchSearchOutcome(len(submitted))
+	o.observe("a", nil, 10*time.Millisecond)
+	o.observe("b", errors.New("failed"), 10*time.Millisecond)
+	o.finalize(submitted)
+
+	// 失败是常态（站点改版、单站限流），不应被当成"这次批量搜索没跑完"
+	if o.complete() {
+		t.Error("存在失败项时 complete() 应为 false")
+	}
+	if o.timedOut() != 0 {
+		t.Errorf("timedOut() = %d, 期望 0", o.timedOut())
+	}
+}
+
+func TestFailureClass(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"限流", &httpStatusError{channel: "c", code: 429}, "限流429"},
+		{"禁止访问", &httpStatusError{channel: "c", code: 403}, "禁止403"},
+		{"频道不存在", &httpStatusError{channel: "c", code: 404}, "不存在404"},
+		{"服务端错误", &httpStatusError{channel: "c", code: 503}, "服务端5xx"},
+		{"其它状态码", &httpStatusError{channel: "c", code: 302}, "状态码302"},
+		{"包装后的超时仍可识别", fmt.Errorf("请求失败: %w", context.DeadlineExceeded), "超时"},
+		{"普通错误", errors.New("boom"), "其它错误"},
+		{"无错误", nil, ""},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := failureClass(c.err); got != c.want {
+				t.Errorf("failureClass() = %q, 期望 %q", got, c.want)
+			}
+		})
+	}
+}
+
+func TestBatchSearchOutcomeSlowestAndFailureSummary(t *testing.T) {
+	o := newBatchSearchOutcome(4)
+	o.observe("fast", nil, 5*time.Millisecond)
+	o.observe("slow", nil, 900*time.Millisecond)
+	o.observe("rate-limited", &httpStatusError{channel: "rate-limited", code: 429}, 20*time.Millisecond)
+	o.observe("also-limited", &httpStatusError{channel: "also-limited", code: 429}, 20*time.Millisecond)
+	o.finalize([]string{"fast", "slow", "rate-limited", "also-limited"})
+
+	slow := o.slowestTasks(2)
+	if len(slow) != 2 || slow[0].id != "slow" {
+		t.Fatalf("slowestTasks() = %+v, 期望首位是 slow", slow)
+	}
+	if slow[1].id != "rate-limited" && slow[1].id != "also-limited" {
+		t.Errorf("slowestTasks() 次位 = %s, 期望是两个限流项之一", slow[1].id)
+	}
+
+	summary := o.failureSummary(5)
+	if !strings.HasPrefix(summary, "限流429×2") {
+		t.Errorf("failureSummary() = %q, 期望以 \"限流429×2\" 开头", summary)
+	}
+	// 摘要必须带一条示例报错，否则"其它错误×N"这类归类无从定位
+	if !strings.Contains(summary, "429") || !strings.Contains(summary, "示例") {
+		t.Errorf("failureSummary() = %q, 期望包含示例错误", summary)
+	}
+	// 全部成功时不应产生失败摘要
+	clean := newBatchSearchOutcome(1)
+	clean.observe("ok", nil, time.Millisecond)
+	clean.finalize([]string{"ok"})
+	if got := clean.failureSummary(5); got != "" {
+		t.Errorf("无失败时 failureSummary() = %q, 期望空串", got)
+	}
+}
+
+// 插件路径要开启 requireYieldTracking：4 秒窗口内返回空、内容靠后台补齐是常态，
+// 这类"全部成功但零产出"不能被判为完整结果缓存一整个周期。
+// 频道路径不开启——频道确实可能没有匹配内容，那种空结果应当正常缓存。
+func TestBatchSearchOutcomeZeroYield(t *testing.T) {
+	full := 60 * time.Minute
+	partial := 3 * time.Minute
+
+	t.Run("插件路径整批零产出不写缓存", func(t *testing.T) {
+		o := newBatchSearchOutcome(2)
+		o.requireYieldTracking()
+		o.observe("a", nil, time.Second)
+		o.observe("b", nil, time.Second)
+		o.observeYield("a", 0, time.Second, nil)
+		o.observeYield("b", 0, time.Second, nil)
+		o.finalize([]string{"a", "b"})
+
+		// 这正是修复前的盲区：没有失败也没有超时，complete() 为真，
+		// 于是空结果被按完整 TTL 缓存 60 分钟，而 shouldBackfill 又因
+		// timedOut()==0 不触发补齐。
+		if !o.complete() {
+			t.Fatal("前置条件：无失败无超时应为 complete")
+		}
+		if _, write := o.cacheTTL(full, partial); write {
+			t.Error("整批零产出不应写缓存")
+		}
+		if len(o.empty) != 2 || o.yielded != 0 {
+			t.Errorf("零产出统计错误: empty=%v yielded=%d", o.empty, o.yielded)
+		}
+	})
+
+	t.Run("有任意产出即恢复正常判定", func(t *testing.T) {
+		o := newBatchSearchOutcome(2)
+		o.requireYieldTracking()
+		o.observe("a", nil, time.Second)
+		o.observe("b", nil, time.Second)
+		o.observeYield("a", 12, time.Second, nil)
+		o.observeYield("b", 0, time.Second, nil)
+		o.finalize([]string{"a", "b"})
+
+		ttl, write := o.cacheTTL(full, partial)
+		if !write || ttl != full {
+			t.Errorf("有产出且无超时应写完整 TTL, 实际 write=%v ttl=%v", write, ttl)
+		}
+		if o.yielded != 1 || len(o.empty) != 1 {
+			t.Errorf("产出统计错误: yielded=%d empty=%v", o.yielded, o.empty)
+		}
+	})
+
+	t.Run("频道路径零产出仍照常缓存", func(t *testing.T) {
+		o := newBatchSearchOutcome(2)
+		o.observe("c1", nil, time.Second)
+		o.observe("c2", nil, time.Second)
+		o.observeYield("c1", 0, time.Second, nil)
+		o.observeYield("c2", 0, time.Second, nil)
+		o.finalize([]string{"c1", "c2"})
+
+		ttl, write := o.cacheTTL(full, partial)
+		if !write || ttl != full {
+			t.Errorf("频道路径应照常写完整 TTL, 实际 write=%v ttl=%v", write, ttl)
+		}
+	})
+
+	t.Run("零产出不改变失败与超时的既有判定", func(t *testing.T) {
+		o := newBatchSearchOutcome(2)
+		o.requireYieldTracking()
+		o.observe("a", errors.New("boom"), time.Second)
+		o.observe("b", nil, time.Second)
+		o.observeYield("b", 0, time.Second, nil)
+		o.finalize([]string{"a", "b"})
+
+		if o.failed != 1 {
+			t.Errorf("failed = %d, 期望 1", o.failed)
+		}
+		if _, write := o.cacheTTL(full, partial); write {
+			t.Error("零产出仍不应写缓存")
+		}
+	})
+}

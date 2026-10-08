@@ -1,0 +1,927 @@
+1.普通搜索
+https://www.pioz.cn/search?q=%E5%8D%B1%E9%99%A9%E5%85%B3%E7%B3%BB
+返回：
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="keywords" content="危险关系,夸克网盘,夸克云盘资源搜索,夸克网盘资源">
+    <meta name="description" content="危险关系 的搜索结果 - 找到约 4 个相关云盘资源。夸克小站为您提供：危险关系相关资源搜索。">
+    <meta name="theme-color" content="#1F2937">
+    <meta property="og:image" content="https://www.pioz.cn/static/images/logo-7.png">
+    <link rel="canonical" href="https://www.pioz.cn/search?q=%e5%8d%b1%e9%99%a9%e5%85%b3%e7%b3%bb" />
+    <title>危险关系 - 找到4个相关资源 - 夸克小站</title>
+    <link rel="icon" href="/static/images/favicon.ico">
+    <link rel="stylesheet" href="/static/css/tailwind.output.css">
+    <link rel="stylesheet" href="/static/css/zt.css">
+    <link rel="stylesheet" href="/static/css/zt.css">
+    <link href="/static/fonts/remixicon/remixicon.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 min-h-screen">
+    <div class="max-w-5xl mx-auto px-4 pt-4">
+        <header class="flex flex-col md:flex-row items-stretch md:items-center gap-4 md:gap-0 justify-between mb-8">
+            <div class="flex items-center justify-between md:justify-start gap-2">
+                <a href="/" class="text-2xl font-bold text-primary hover:text-primary/90">夸克小站</a>
+                <div class="flex md:hidden items-center gap-2">
+                    <a href="/hot" class="w-9 h-9 flex items-center justify-center text-gray-400 hover:bg-gray-700 rounded-lg !rounded-button">
+                        <i class="ri-fire-line text-lg"></i>
+                    </a>
+                    <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <i class="ri-user-line text-primary"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="relative flex-1 max-w-xl md:mx-8">
+                <div class="relative">
+                    <input type="text" placeholder="搜索文件名..." value="危险关系" class="search-input w-full pl-8 pr-4 py-1.5 bg-gray-800 rounded-lg border-none shadow-sm focus:ring-2 focus:ring-primary/20 text-sm text-gray-100 placeholder-gray-500">
+                    <div class="absolute left-3 top-0 h-full w-4 flex items-center justify-center text-gray-400">
+                        <i class="ri-search-line"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="hidden md:flex items-center gap-4">
+                <a href="/hot" class="flex items-center gap-1.5 px-3 py-1.5 text-gray-400 hover:bg-gray-700 rounded-lg !rounded-button" title="热门搜索">
+                    <i class="ri-fire-line text-lg"></i>
+                    <span class="text-sm">热搜</span>
+                </a>
+                <a href="https://pan.quark.cn/g/d7d04e8da2" target="_blank" rel="noopener noreferrer" title="加入群组" class="flex items-center gap-1.5 px-3 py-1.5 text-gray-400 hover:bg-gray-700 rounded-lg !rounded-button">
+                    <i class="ri-telegram-line text-primary"></i>
+                    <span class="text-sm">加入群组</span>
+                </a>
+            </div>
+        </header>
+        <main>
+            <div class="bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                <div class="hidden md:flex items-center px-4 py-3 border-b border-gray-700 text-sm text-gray-400">
+                    <div class="w-8"></div>
+                    <div class="flex items-center gap-4 flex-1">
+                        <div class="flex-1">文件名</div>
+                        <div class="flex items-center gap-3">
+                            <div style="width: 100px;" class="text-center">来源</div>
+                            <div style="width: 150px;" class="text-center">发布日期</div>
+                            <div class="w-24"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="divide-y divide-gray-700">
+                    
+                    <div class="file-item group px-4 py-3 hover:bg-gray-700 transition-colors">
+                        <div class="flex items-start md:items-center gap-2 md:gap-0">
+                            <div class="w-6 md:w-8 flex-shrink-0 flex items-center justify-center pt-0.5 md:pt-0">
+                                <i class="ri-file-text-line text-lg md:text-xl text-blue-500"></i>
+                            </div>
+                            <div class="flex-1 min-w-0 overflow-hidden">
+                                <a href="/detail/562856" class="block">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-gray-100 hover:text-primary" style="max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block;" title="危险关系 - Dirty Twinz/派克特/王以太/陶小陶/Lofimaker 【Flac】">危险关系 - Dirty Twinz/派克特/王以太/陶小陶/Lofimaker 【Flac】</span>
+                                        
+                                        <div class="hidden md:flex flex-shrink-0 flex-wrap gap-1">
+                                            
+                                            <span class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">热门音乐</span>
+                                            
+                                            <span class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">Flac</span>
+                                            
+                                        </div>
+                                        
+                                    </div>
+                                    <div class="flex items-center gap-3 text-sm md:hidden">
+                                        
+                                        <div class="flex flex-wrap gap-1">
+                                            
+                                            <span class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">热门音乐</span>
+                                            
+                                            <span class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">Flac</span>
+                                            
+                                        </div>
+                                        
+                                        <div class="text-gray-400">夸克网盘</div>
+                                        <div class="text-gray-400">2026-02-18 19:29</div>
+                                    </div>
+                                </a>
+                            </div>
+                            <div class="hidden md:flex items-center gap-3 flex-shrink-0 pl-4">
+                                <div style="width: 100px;" class="text-center text-sm text-gray-400">夸克网盘</div>
+                                <div style="width: 150px;" class="text-center text-sm text-gray-400">2026-02-18 19:29</div>
+                                <div class="w-24 flex justify-end gap-2">
+                                    <button onclick="copyToClipboard('/detail/562856')" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-primary rounded !rounded-button" title="分享">
+                                        <i class="ri-share-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="file-item group px-4 py-3 hover:bg-gray-700 transition-colors">
+                        <div class="flex items-start md:items-center gap-2 md:gap-0">
+                            <div class="w-6 md:w-8 flex-shrink-0 flex items-center justify-center pt-0.5 md:pt-0">
+                                <i class="ri-file-text-line text-lg md:text-xl text-blue-500"></i>
+                            </div>
+                            <div class="flex-1 min-w-0 overflow-hidden">
+                                <a href="/detail/19716" class="block">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-gray-100 hover:text-primary" style="max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block;" title="危险关系">危险关系</span>
+                                        
+                                        <div class="hidden md:flex flex-shrink-0 flex-wrap gap-1">
+                                            
+                                            <span class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">电影</span>
+                                            
+                                        </div>
+                                        
+                                    </div>
+                                    <div class="flex items-center gap-3 text-sm md:hidden">
+                                        
+                                        <div class="flex flex-wrap gap-1">
+                                            
+                                            <span class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">电影</span>
+                                            
+                                        </div>
+                                        
+                                        <div class="text-gray-400">夸克网盘</div>
+                                        <div class="text-gray-400">2025-03-24 21:03</div>
+                                    </div>
+                                </a>
+                            </div>
+                            <div class="hidden md:flex items-center gap-3 flex-shrink-0 pl-4">
+                                <div style="width: 100px;" class="text-center text-sm text-gray-400">夸克网盘</div>
+                                <div style="width: 150px;" class="text-center text-sm text-gray-400">2025-03-24 21:03</div>
+                                <div class="w-24 flex justify-end gap-2">
+                                    <button onclick="copyToClipboard('/detail/19716')" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-primary rounded !rounded-button" title="分享">
+                                        <i class="ri-share-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="file-item group px-4 py-3 hover:bg-gray-700 transition-colors">
+                        <div class="flex items-start md:items-center gap-2 md:gap-0">
+                            <div class="w-6 md:w-8 flex-shrink-0 flex items-center justify-center pt-0.5 md:pt-0">
+                                <i class="ri-file-text-line text-lg md:text-xl text-blue-500"></i>
+                            </div>
+                            <div class="flex-1 min-w-0 overflow-hidden">
+                                <a href="/detail/4639" class="block">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-gray-100 hover:text-primary" style="max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block;" title="《危险关系》长篇 完结">《危险关系》长篇 完结</span>
+                                        
+                                        <div class="hidden md:flex flex-shrink-0 flex-wrap gap-1">
+                                            
+                                            <span class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">短剧</span>
+                                            
+                                        </div>
+                                        
+                                    </div>
+                                    <div class="flex items-center gap-3 text-sm md:hidden">
+                                        
+                                        <div class="flex flex-wrap gap-1">
+                                            
+                                            <span class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">短剧</span>
+                                            
+                                        </div>
+                                        
+                                        <div class="text-gray-400">夸克网盘</div>
+                                        <div class="text-gray-400">2025-02-28 20:23</div>
+                                    </div>
+                                </a>
+                            </div>
+                            <div class="hidden md:flex items-center gap-3 flex-shrink-0 pl-4">
+                                <div style="width: 100px;" class="text-center text-sm text-gray-400">夸克网盘</div>
+                                <div style="width: 150px;" class="text-center text-sm text-gray-400">2025-02-28 20:23</div>
+                                <div class="w-24 flex justify-end gap-2">
+                                    <button onclick="copyToClipboard('/detail/4639')" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-primary rounded !rounded-button" title="分享">
+                                        <i class="ri-share-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="file-item group px-4 py-3 hover:bg-gray-700 transition-colors">
+                        <div class="flex items-start md:items-center gap-2 md:gap-0">
+                            <div class="w-6 md:w-8 flex-shrink-0 flex items-center justify-center pt-0.5 md:pt-0">
+                                <i class="ri-file-text-line text-lg md:text-xl text-blue-500"></i>
+                            </div>
+                            <div class="flex-1 min-w-0 overflow-hidden">
+                                <a href="/detail/5508" class="block">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-gray-100 hover:text-primary" style="max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block;" title="危险关系 95集（钟熙版）">危险关系 95集（钟熙版）</span>
+                                        
+                                        <div class="hidden md:flex flex-shrink-0 flex-wrap gap-1">
+                                            
+                                            <span class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">短剧</span>
+                                            
+                                        </div>
+                                        
+                                    </div>
+                                    <div class="flex items-center gap-3 text-sm md:hidden">
+                                        
+                                        <div class="flex flex-wrap gap-1">
+                                            
+                                            <span class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">短剧</span>
+                                            
+                                        </div>
+                                        
+                                        <div class="text-gray-400">夸克网盘</div>
+                                        <div class="text-gray-400">2025-02-28 20:23</div>
+                                    </div>
+                                </a>
+                            </div>
+                            <div class="hidden md:flex items-center gap-3 flex-shrink-0 pl-4">
+                                <div style="width: 100px;" class="text-center text-sm text-gray-400">夸克网盘</div>
+                                <div style="width: 150px;" class="text-center text-sm text-gray-400">2025-02-28 20:23</div>
+                                <div class="w-24 flex justify-end gap-2">
+                                    <button onclick="copyToClipboard('/detail/5508')" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-primary rounded !rounded-button" title="分享">
+                                        <i class="ri-share-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+            <div class="mt-6 flex flex-col items-center gap-4 text-sm">
+                
+                <div class="text-gray-400 self-start">
+                  共找到 <span>4</span> 个与"危险关系"相关的资源文件
+                  <p class="text-sm mt-1">这些"危险关系"相关资源来自多个网盘平台，均为用户分享内容<br>Tpis:可以根据资源上传时间来判断是否是最新资源哦</p>
+                </div>
+                
+                
+                
+            </div>
+            
+        </main>
+    </div>
+    <script src="/static/js/result.js"></script>
+    <script src="/static/js/protect.js"></script>
+    <script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?edec8f6b1379e2dbd556573185094d06";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+</body>
+</html> 
+
+2.详情页
+https://www.pioz.cn/detail/19716
+返回：
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1F2937">
+    <title>危险关系 电影 夸克网盘分享 - 资源详情 | 夸克小站</title>
+    <meta name="keywords" content="危险关系，夸克小站，电影">
+    <meta name="description" content="危险关系 【夸克网盘】电影 | 更新于2025-03-24，热度911。提供高速下载链接，免登录即可查看。夸克小站提供海量网盘资源。">
+    <link rel="canonical" href="https://www.pioz.cn/detail/19716">
+    <meta name="author" content="夸克小站">
+    <meta name="robots" content="index, follow">
+    <meta name="revisit-after" content="7 days">
+    <meta property="og:title" content="危险关系 - 夸克网盘资源 | 夸克小站">
+    <meta property="og:description" content="危险关系 【夸克网盘】#电影 | 更新于2025-03-24，热度911。立即查看资源详情。">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://www.pioz.cn/detail/19716">
+    <meta property="og:site_name" content="夸克小站">
+    <meta property="og:image" content="https://www.pioz.cn/static/images/logo-7.png">
+    <meta property="og:image:alt" content="危险关系 - 夸克网盘资源">
+    <meta property="og:image:width" content="1284">
+    <meta property="og:image:height" content="653">
+    <meta property="article:published_time" content="2025-03-24T21:03:58&#43;08:00">
+    <meta property="article:author" content="夸克小站">
+    <meta property="article:section" content="夸克网盘资源">
+
+    <meta property="article:tag" content="电影">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="危险关系 - 夸克网盘资源 | 夸克小站">
+    <meta name="twitter:description" content="危险关系 【夸克网盘】- 更新于2025-03-24，热度911。立即查看高速下载资源。">
+    <meta name="twitter:image" content="https://www.pioz.cn/static/images/ogBanner.webp">
+    <meta name="twitter:image:alt" content="危险关系 - 夸克网盘资源">
+    <meta name="twitter:site" content="@夸克小站">
+    <meta name="resource:type" content="夸克网盘">
+    <meta name="resource:category" content="电影">
+    <meta name="resource:tags" content="电影,">
+    <meta name="resource:views" content="911">
+    <meta name="resource:date" content="2025-03-24T21:03:58&#43;08:00">
+    <meta name="resource:popularity" content="911">
+    <meta name="resource:platform" content="夸克网盘">
+    <link rel="stylesheet" href="/static/css/tailwind.output.css">
+    <link rel="icon" href="/static/images/favicon.ico">
+    <link href="/static/fonts/remixicon/remixicon.css" rel="stylesheet">
+    <link href="/static/css/detail.css" rel="stylesheet">
+    <link href="/static/css/zt.css" rel="stylesheet">
+    <link href="/static/css/con.css" rel="stylesheet">
+    <script src="https://static.geetest.com/v4/gt4.js"></script>
+</head>
+
+<body class="bg-gray-900 min-h-screen">
+    <div class="max-w-5xl mx-auto px-4 pt-4">
+        <header class="flex flex-col md:flex-row items-stretch md:items-center gap-4 md:gap-0 justify-between mb-8">
+            <div class="flex items-center justify-between md:justify-start gap-2">
+                <a href="/" class="text-2xl font-bold text-primary hover:text-primary/90">夸克小站</a>
+                <div class="flex md:hidden items-center gap-2">
+                    <a href="/hot"
+                        class="w-9 h-9 flex items-center justify-center text-gray-400 hover:bg-gray-700 rounded-lg !rounded-button">
+                        <i class="ri-fire-line text-lg"></i>
+                    </a>
+                    <a href="https://pan.quark.cn/g/d7d04e8da2" target="_blank" title="加入群组">
+                        <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <i class="ri-telegram-line text-primary"></i>
+                        </div>
+                    </a>
+                </div>
+            </div>
+            <div class="relative flex-1 max-w-xl md:mx-8">
+                <div class="relative">
+                    <input type="text" placeholder="搜索文件名..."
+                        class="search-input w-full pl-8 pr-4 py-1.5 bg-gray-800 rounded-lg border-none shadow-sm focus:ring-2 focus:ring-primary/20 text-sm text-gray-100 placeholder-gray-500">
+                    <div class="absolute left-3 top-0 h-full w-4 flex items-center justify-center text-gray-400">
+                        <i class="ri-search-line"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="hidden md:flex items-center gap-4">
+                <a href="/hot"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-gray-400 hover:bg-gray-700 rounded-lg !rounded-button"
+                    title="热门搜索">
+                    <i class="ri-fire-line text-lg"></i>
+                    <span class="text-sm">热搜</span>
+                </a>
+                <a href="https://pan.quark.cn/g/d7d04e8da2" target="_blank" rel="noopener noreferrer" title="加入群组"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-gray-400 hover:bg-gray-700 rounded-lg !rounded-button">
+                    <i class="ri-telegram-line text-primary"></i>
+                    <span class="text-sm">加入群组</span>
+                </a>
+            </div>
+        </header>
+
+        <main>
+            <div class="bg-gray-800 rounded-xl shadow-sm overflow-hidden mb-8">
+                <div class="p-6">
+                    <div class="flex flex-col gap-4">
+                        <h1 class="text-xl font-medium text-gray-100">危险关系</h1>
+                        <div class="flex items-center flex-wrap gap-3 text-sm text-gray-400">
+                            <div class="flex items-center gap-1">
+                                <i class="ri-hard-drive-line"></i>
+                                <span>夸克网盘</span>
+                            </div>
+
+                            <span class="px-2 py-0.5 bg-gray-700 rounded-full text-xs">电影</span>
+
+                            <div class="flex items-center gap-1">
+                                <i class="ri-time-line"></i>
+                                <span>2025-03-24 21:03</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <i class="ri-eye-line"></i>
+                                <span>911 热度</span>
+                            </div>
+                        </div>
+                        <div class="flex gap-3">
+                            <button id="downloadBtn" data-id="19716"
+                                class="flex items-center gap-1.5 px-2.5 py-1.5 text-sm bg-primary text-white rounded !rounded-button hover:bg-primary/90 transition-colors">
+                                <i class="ri-external-link-line"></i>
+                                <span class="md:inline hidden">获取链接</span>
+                                <span class="md:hidden inline">获取</span>
+                            </button>
+                            <a href="https://qr61.cn/osSEmk/q4uGVJn" target="_blank"
+                                class="flex items-center gap-1.5 px-2.5 py-1.5 text-sm bg-green-600 text-white rounded !rounded-button hover:bg-green-700 transition-colors">
+                                <i class="ri-heart-line"></i>
+                                <span class="md:inline hidden">加入群组</span>
+                                <span class="md:hidden inline">群组</span>
+                            </a>
+                            <button onclick="showFeedbackModal()"
+                                class="flex items-center gap-1.5 px-2.5 py-1.5 text-sm bg-gray-700 text-white rounded !rounded-button hover:bg-gray-600 transition-colors">
+                                <i class="ri-flag-line"></i>
+                                <span class="md:inline hidden">举报反馈</span>
+                                <span class="md:hidden inline">反馈</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-6">
+                <h2 class="text-lg font-medium text-gray-100 mb-4">相关推荐</h2>
+                <div class="bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                    <div class="hidden md:flex items-center px-4 py-3 border-b border-gray-700 text-sm text-gray-400">
+                        <div class="w-8"></div>
+                        <div class="flex items-center gap-4 flex-1">
+                            <div class="flex-1">文件名</div>
+                            <div class="flex items-center gap-3">
+                                <div style="width: 100px;" class="text-center">来源</div>
+                                <div style="width: 150px;" class="text-center">发布日期</div>
+                                <div class="w-24"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="divide-y divide-gray-700">
+
+                        <div class="file-item group px-4 py-3 hover:bg-gray-700 transition-colors">
+                            <div class="flex flex-col md:flex-row md:items-center gap-3 md:gap-0">
+                                <div class="flex items-start flex-1">
+                                    <div class="w-8 flex items-center justify-center">
+                                        <i class="ri-file-text-line text-xl text-blue-500"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <a href="/detail/381169" class="block">
+                                            <div class="flex flex-col md:flex-row md:items-center gap-2">
+                                                <span
+                                                    class="truncate text-gray-100 hover:text-primary flex-shrink min-w-0"
+                                                    title="街角的晚风(女声纯享版) [MP3/WAV]">街角的晚风(女声纯享版) [MP3/WAV]</span>
+                                                <div class="flex items-center gap-3 text-sm flex-shrink-0">
+
+                                                    <div class="flex flex-wrap gap-1">
+
+                                                        <span
+                                                            class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">热门音乐</span>
+
+                                                    </div>
+
+                                                    <div class="md:hidden text-gray-400">夸克网盘</div>
+                                                    <div class="md:hidden text-gray-400">2026-02-10 19:37</div>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4 pl-8 md:pl-0">
+                                    <div class="flex items-center gap-3">
+                                        <div style="width: 100px;"
+                                            class="hidden md:block text-center text-sm text-gray-400">夸克网盘</div>
+                                        <div style="width: 150px;"
+                                            class="hidden md:block text-center text-sm text-gray-400">
+                                            2026-02-10 19:37</div>
+                                    </div>
+                                    <div class="hidden md:flex w-24 justify-end gap-2">
+                                        <div class="flex gap-2">
+                                            <button onclick="copyToClipboard('/detail/381169')"
+                                                class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-primary rounded !rounded-button"
+                                                title="分享">
+                                                <i class="ri-share-line"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="file-item group px-4 py-3 hover:bg-gray-700 transition-colors">
+                            <div class="flex flex-col md:flex-row md:items-center gap-3 md:gap-0">
+                                <div class="flex items-start flex-1">
+                                    <div class="w-8 flex items-center justify-center">
+                                        <i class="ri-file-text-line text-xl text-blue-500"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <a href="/detail/498963" class="block">
+                                            <div class="flex flex-col md:flex-row md:items-center gap-2">
+                                                <span
+                                                    class="truncate text-gray-100 hover:text-primary flex-shrink min-w-0"
+                                                    title="《唐朝诡事录[精品]》.epub夸克网盘下载">《唐朝诡事录[精品]》.epub夸克网盘下载</span>
+                                                <div class="flex items-center gap-3 text-sm flex-shrink-0">
+
+                                                    <div class="flex flex-wrap gap-1">
+
+                                                        <span
+                                                            class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">资料</span>
+
+                                                    </div>
+
+                                                    <div class="md:hidden text-gray-400">夸克网盘</div>
+                                                    <div class="md:hidden text-gray-400">2026-02-10 19:40</div>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4 pl-8 md:pl-0">
+                                    <div class="flex items-center gap-3">
+                                        <div style="width: 100px;"
+                                            class="hidden md:block text-center text-sm text-gray-400">夸克网盘</div>
+                                        <div style="width: 150px;"
+                                            class="hidden md:block text-center text-sm text-gray-400">
+                                            2026-02-10 19:40</div>
+                                    </div>
+                                    <div class="hidden md:flex w-24 justify-end gap-2">
+                                        <div class="flex gap-2">
+                                            <button onclick="copyToClipboard('/detail/498963')"
+                                                class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-primary rounded !rounded-button"
+                                                title="分享">
+                                                <i class="ri-share-line"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="file-item group px-4 py-3 hover:bg-gray-700 transition-colors">
+                            <div class="flex flex-col md:flex-row md:items-center gap-3 md:gap-0">
+                                <div class="flex items-start flex-1">
+                                    <div class="w-8 flex items-center justify-center">
+                                        <i class="ri-file-text-line text-xl text-blue-500"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <a href="/detail/498966" class="block">
+                                            <div class="flex flex-col md:flex-row md:items-center gap-2">
+                                                <span
+                                                    class="truncate text-gray-100 hover:text-primary flex-shrink min-w-0"
+                                                    title="《一个悲观主义者的积极思考[精品]》叔本华.epub夸克网盘下载">《一个悲观主义者的积极思考[精品]》叔本华.epub夸克网盘下载</span>
+                                                <div class="flex items-center gap-3 text-sm flex-shrink-0">
+
+                                                    <div class="flex flex-wrap gap-1">
+
+                                                        <span
+                                                            class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">资料</span>
+
+                                                    </div>
+
+                                                    <div class="md:hidden text-gray-400">夸克网盘</div>
+                                                    <div class="md:hidden text-gray-400">2026-02-10 19:40</div>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4 pl-8 md:pl-0">
+                                    <div class="flex items-center gap-3">
+                                        <div style="width: 100px;"
+                                            class="hidden md:block text-center text-sm text-gray-400">夸克网盘</div>
+                                        <div style="width: 150px;"
+                                            class="hidden md:block text-center text-sm text-gray-400">
+                                            2026-02-10 19:40</div>
+                                    </div>
+                                    <div class="hidden md:flex w-24 justify-end gap-2">
+                                        <div class="flex gap-2">
+                                            <button onclick="copyToClipboard('/detail/498966')"
+                                                class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-primary rounded !rounded-button"
+                                                title="分享">
+                                                <i class="ri-share-line"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="file-item group px-4 py-3 hover:bg-gray-700 transition-colors">
+                            <div class="flex flex-col md:flex-row md:items-center gap-3 md:gap-0">
+                                <div class="flex items-start flex-1">
+                                    <div class="w-8 flex items-center justify-center">
+                                        <i class="ri-file-text-line text-xl text-blue-500"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <a href="/detail/499121" class="block">
+                                            <div class="flex flex-col md:flex-row md:items-center gap-2">
+                                                <span
+                                                    class="truncate text-gray-100 hover:text-primary flex-shrink min-w-0"
+                                                    title="《平凡的世界[精品]》.epub夸克网盘下载">《平凡的世界[精品]》.epub夸克网盘下载</span>
+                                                <div class="flex items-center gap-3 text-sm flex-shrink-0">
+
+                                                    <div class="flex flex-wrap gap-1">
+
+                                                        <span
+                                                            class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">资料</span>
+
+                                                    </div>
+
+                                                    <div class="md:hidden text-gray-400">夸克网盘</div>
+                                                    <div class="md:hidden text-gray-400">2026-02-10 19:40</div>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4 pl-8 md:pl-0">
+                                    <div class="flex items-center gap-3">
+                                        <div style="width: 100px;"
+                                            class="hidden md:block text-center text-sm text-gray-400">夸克网盘</div>
+                                        <div style="width: 150px;"
+                                            class="hidden md:block text-center text-sm text-gray-400">
+                                            2026-02-10 19:40</div>
+                                    </div>
+                                    <div class="hidden md:flex w-24 justify-end gap-2">
+                                        <div class="flex gap-2">
+                                            <button onclick="copyToClipboard('/detail/499121')"
+                                                class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-primary rounded !rounded-button"
+                                                title="分享">
+                                                <i class="ri-share-line"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="file-item group px-4 py-3 hover:bg-gray-700 transition-colors">
+                            <div class="flex flex-col md:flex-row md:items-center gap-3 md:gap-0">
+                                <div class="flex items-start flex-1">
+                                    <div class="w-8 flex items-center justify-center">
+                                        <i class="ri-file-text-line text-xl text-blue-500"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <a href="/detail/499441" class="block">
+                                            <div class="flex flex-col md:flex-row md:items-center gap-2">
+                                                <span
+                                                    class="truncate text-gray-100 hover:text-primary flex-shrink min-w-0"
+                                                    title="武侠小说合集100本 夸克网盘下载">武侠小说合集100本 夸克网盘下载</span>
+                                                <div class="flex items-center gap-3 text-sm flex-shrink-0">
+
+                                                    <div class="flex flex-wrap gap-1">
+
+                                                        <span
+                                                            class="px-1.5 py-0.5 bg-gray-700 rounded-full text-xs text-gray-400">资料</span>
+
+                                                    </div>
+
+                                                    <div class="md:hidden text-gray-400">夸克网盘</div>
+                                                    <div class="md:hidden text-gray-400">2026-02-10 19:40</div>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4 pl-8 md:pl-0">
+                                    <div class="flex items-center gap-3">
+                                        <div style="width: 100px;"
+                                            class="hidden md:block text-center text-sm text-gray-400">夸克网盘</div>
+                                        <div style="width: 150px;"
+                                            class="hidden md:block text-center text-sm text-gray-400">
+                                            2026-02-10 19:40</div>
+                                    </div>
+                                    <div class="hidden md:flex w-24 justify-end gap-2">
+                                        <div class="flex gap-2">
+                                            <button onclick="copyToClipboard('/detail/499441')"
+                                                class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-primary rounded !rounded-button"
+                                                title="分享">
+                                                <i class="ri-share-line"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </main>
+        <div class="footer mt-8 pb-4">
+            <div class="footer-links">
+                <a href="/about" class="footer-link">关于我们</a>
+                <span class="footer-divider">|</span>
+                <a href="/terms" class="footer-link">使用条款</a>
+                <span class="footer-divider">|</span>
+                <a href="/privacy" class="footer-link">隐私政策</a>
+            </div>
+            <div class="footer-copyright">
+                © 2025 夸克小站 - 所有资源来自互联网，本站不存储任何资源
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/detail.js"></script>
+    <script src="/static/js/protect.js"></script>
+    <div id="feedbackModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md">
+            <h3 class="text-lg font-medium text-gray-100 mb-4">举报反馈</h3>
+            <div class="flex flex-col gap-3">
+                <button onclick="submitFeedback('report')"
+                    class="w-full px-4 py-2 bg-red-600 text-white rounded !rounded-button hover:bg-red-700 transition-colors">
+                    举报资源
+                </button>
+                <button onclick="submitFeedback('invalid')"
+                    class="w-full px-4 py-2 bg-yellow-600 text-white rounded !rounded-button hover:bg-yellow-700 transition-colors">
+                    资源失效
+                </button>
+                <button onclick="closeFeedbackModal()"
+                    class="w-full px-4 py-2 bg-gray-700 text-white rounded !rounded-button hover:bg-gray-600 transition-colors">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var bp = document.createElement('script');
+            var curProtocol = window.location.protocol.split(':')[0];
+            if (curProtocol === 'https') {
+                bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
+            }
+            else {
+                bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+            }
+            var s = document.getElementsByTagName("script")[0];
+            s.parentNode.insertBefore(bp, s);
+        })();
+    </script>
+    <script type="application/ld+json">
+        {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://www.pioz.cn/detail/19716"
+  },
+  "headline": "危险关系",
+  "description": "危险关系 - 来自夸克网盘的云盘资源，更新于2025-03-24，热度911",
+  "image": "https://www.pioz.cn/static/images/ogBanner.webp",
+  "datePublished": "2025-03-24T21:03:58\u002b08:00",
+  "dateModified": "2025-03-24T21:03:58\u002b08:00",
+  "author": {
+    "@type": "Organization",
+    "name": "夸克网盘",
+    "url": "https://www.pioz.cn/search?q=危险关系"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "夸克小站",
+    "url": "https://www.pioz.cn",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://www.pioz.cn/static/images/logo.png",
+      "width": "180",
+      "height": "60"
+    }
+  },
+  "keywords": "危险关系,#电影,短剧,夸克网盘,网盘资源,夸克小站,云盘分享",
+  "genre": "电影",
+  "accessMode": "visual",
+  "accessibilityFeature": "highContrast",
+  "accessibilityHazard": "noFlashingHazard",
+  "isAccessibleForFree": "True"
+}
+    </script>
+    <script>
+        var _hmt = _hmt || [];
+        (function () {
+            var hm = document.createElement("script");
+            hm.src = "https://hm.baidu.com/hm.js?edec8f6b1379e2dbd556573185094d06";
+            var s = document.getElementsByTagName("script")[0];
+            s.parentNode.insertBefore(hm, s);
+        })();
+    </script>
+    <script>
+        document.getElementById('downloadBtn').addEventListener('click', function (e) {
+            e.preventDefault();
+            const btn = this;
+            const id = btn.getAttribute('data-id');
+            if (!id) return;
+
+            btn.disabled = true;
+            btn.querySelector('.md\\:inline').innerText = '获取中';
+            btn.querySelector('.md\\:hidden').innerText = '获取中';
+
+            fetchLink(id);
+        });
+
+        function fetchLink(id, geetestParams = null) {
+            let url = '/api/download-link?id=' + encodeURIComponent(id);
+            if (geetestParams) {
+                url += '&lot_number=' + encodeURIComponent(geetestParams.lot_number) +
+                    '&captcha_output=' + encodeURIComponent(geetestParams.captcha_output) +
+                    '&pass_token=' + encodeURIComponent(geetestParams.pass_token) +
+                    '&gen_time=' + encodeURIComponent(geetestParams.gen_time);
+            }
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    const btn = document.getElementById('downloadBtn');
+                    if (data.success) {
+                        
+                        btn.disabled = false;
+                        btn.querySelector('.md\\:inline').innerText = '获取链接';
+                        btn.querySelector('.md\\:hidden').innerText = '获取';
+                        
+                        setTimeout(function () {
+                            
+                            if (window.innerWidth <= 768) {
+                                window.location.href = data.link;
+                            } else {
+                                window.open(data.link, '_blank');
+                            }
+                        }, 100);
+                    } else if (data.code === 'captcha_required') {
+                        
+                        initGeetest4({
+                            captchaId: data.gt_id,
+                            product: 'bind',
+                        }, function (captchaObj) {
+                            captchaObj.onReady(function () {
+                                captchaObj.showCaptcha();
+                            }).onSuccess(function () {
+                                var result = captchaObj.getValidate();
+                                fetchLink(id, result);
+                            }).onError(function (e) {
+                                alert("验证出错，请刷新重试");
+                            }).onClose(function () {
+                                btn.disabled = false;
+                                btn.querySelector('.md\\:inline').innerText = '获取链接';
+                                btn.querySelector('.md\\:hidden').innerText = '获取';
+                            });
+                            captchaObj.showBox(); 
+                        });
+                    } else {
+                        alert(data.message || '获取链接失败');
+                        btn.disabled = false;
+                        btn.querySelector('.md\\:inline').innerText = '获取链接';
+                        btn.querySelector('.md\\:hidden').innerText = '获取';
+                    }
+                })
+                .catch(err => {
+                    alert('网络处理错误，请重试');
+                    const btn = document.getElementById('downloadBtn');
+                    btn.disabled = false;
+                    btn.querySelector('.md\\:inline').innerText = '获取链接';
+                    btn.querySelector('.md\\:hidden').innerText = '获取';
+                });
+        }
+    </script>
+</body>
+
+</html>
+
+3.获取链接
+https://www.pioz.cn/api/download-link?id=19716
+返回：
+{
+	"link": "https://pan.quark.cn/s/c0894e2da07b",
+	"success": true
+}
+
+---
+
+1.深度搜索
+https://www.pioz.cn/api/deep-search?kw=%E9%80%90%E7%8E%89
+返回：
+{
+	"code": 0,
+	"message": "success",
+	"total": 169,
+	"results": [{
+		"id": "1776930044378311879_0",
+		"title": "国剧丨逐玉 (2026)丨田曦薇 / 张凌赫主演丨全40集",
+		"cloud_type": "quark",
+		"datetime": "2026-03-06 10:12"
+	}, {
+		"id": "1776930044378311879_1",
+		"title": "国剧丨逐玉 (2026)丨田曦薇 / 张凌赫主演丨全40集",
+		"cloud_type": "quark",
+		"datetime": "2026-03-06 10:12"
+	}, {
+		"id": "1776930044378311879_2",
+		"title": "逐玉 全40集——看这个",
+		"cloud_type": "quark",
+		"datetime": "2026-03-22 00:00"
+	}, {
+		"id": "1776930044378311879_3",
+		"title": "逐玉‎ (2026) 4K SDR HDR 臻彩MAX+ DV杜比视界 高码率 FLAC2.0\u0026DDP2.0\u0026AAC5.1\u0026HIFI 中字【共574GB】全40集 超前完结，田曦薇/张凌赫",
+		"cloud_type": "quark",
+		"datetime": "2026-04-20 08:18"
+	}, {
+		"id": "1776930044378311879_4",
+		"title": "🗄 逐玉(2026)【40集全】【IQ.4K】【内封简繁英】【爱情/古装】【田曦薇/张凌赫】",
+		"cloud_type": "quark",
+		"datetime": "2026-04-21 07:38"
+	}, {
+		"id": "1776930044378311879_5",
+		"title": "逐玉(2026)【40集全】【IQ.4K】【内封简繁英】【爱情/古装】【田曦薇/张凌赫】",
+		"cloud_type": "quark",
+		"datetime": "2026-04-11 13:27"
+	}, {
+		"id": "1776930044378311879_6",
+		"title": "#剧集名称：逐玉 (2026) [WEB-4K] [内封简中] [全40集]·",
+		"cloud_type": "quark",
+		"datetime": "2026-03-26 10:42"
+	}]
+}
+
+
+2.获取链接
+https://www.pioz.cn/api/transfer?id=1776930044378311879_0&lot_number=&captcha_output=&pass_token=&gen_time=
+当出现"请求频繁，请进行滑动验证"后就不再继续尝试解锁剩下的资源
+返回：
+{
+	"error": "资源失效/违规",
+	"success": false
+}
+{
+    "data": {
+        "pwd": "",
+        "title": "疯狂动物城2(国语)",
+        "url": "https://pan.quark.cn/s/2bba5088968e"
+    },
+    "success": true
+}
+{
+    "code": "captcha_required",
+    "gt_id": "fd64ea01bc9d7f81fecd6e50428ac864",
+    "message": "请求频繁，请进行滑动验证",
+    "success": false
+}

@@ -1,0 +1,85 @@
+# 构建阶段
+# 使用 --platform=$BUILDPLATFORM 确保构建器始终在运行 Actions 的机器的原生架构上运行 (通常是 linux/amd64)
+# $BUILDPLATFORM 是 buildx 自动提供的变量
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+
+# 安装构建依赖
+RUN apk add --no-cache git ca-certificates tzdata
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制依赖文件
+COPY go.mod go.sum ./
+
+# 下载依赖
+RUN go mod download
+
+# 复制源代码
+COPY . .
+
+# 构建参数
+ARG VERSION=dev
+ARG BUILD_DATE=unknown
+ARG VCS_REF=unknown
+
+# 这是 buildx 自动传入的目标平台架构参数，例如 amd64, arm64
+ARG TARGETARCH
+
+# 构建应用
+# Go 语言原生支持交叉编译，这里会根据传入的 TARGETARCH 编译出对应平台的可执行文件
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags="-s -w -extldflags '-static'" -o pansou .
+
+# 运行阶段
+# 这一阶段会根据 buildx 的 --platform 参数选择正确的基础镜像 (例如 linux/arm64 会拉取 arm64/alpine)
+FROM alpine:3.19
+
+# 添加运行时依赖
+RUN apk add --no-cache ca-certificates tzdata
+
+# 创建缓存目录
+RUN mkdir -p /app/cache
+
+# 从构建阶段复制可执行文件
+# buildx 会智能地从对应平台的 builder 中复制正确的可执行文件
+COPY --from=builder /app/pansou /app/pansou
+
+# 设置工作目录
+WORKDIR /app
+
+# 暴露端口
+EXPOSE 8888
+
+# 设置环境变量
+# ENABLED_PLUGINS: 必须指定启用的插件，多个插件用逗号分隔
+# AUTH_ENABLED: 认证功能默认关闭，可通过环境变量启用
+ENV CACHE_PATH=/app/cache \
+    CACHE_ENABLED=true \
+    TZ=Asia/Shanghai \
+    ASYNC_PLUGIN_ENABLED=true \
+    ASYNC_RESPONSE_TIMEOUT=4 \
+    ASYNC_MAX_BACKGROUND_WORKERS=20 \
+    ASYNC_MAX_BACKGROUND_TASKS=100 \
+    ASYNC_CACHE_TTL_HOURS=1 \
+    CHANNELS=tgsearchers7,Aliyun_4K_Movies,yunpanx,yp123pan,yunpanxunlei,tianyifc,peccxinpd,gotopan,PanjClub,baicaoZY,MCPH02,MCPH03,bdwpzhpd,Q66Share,ucwpzy,shareAliyun,Quark_Movies,XiangxiuNBB,ucquark,xx123pan,yingshifenxiang123,zyfb123,Lsp115,taoxgzy,Channel_Shares_115,vip115hot,wp123zy,yunpan139,yunpan189,yunpanuc,yydf_hzl,leoziyuan,yoyokuakeduanju,TG654TG,QukanMovie,yeqingjie_GJG666,movielover8888_film3,Baidu_netdisk,D_wusun,FLMdongtianfudi,KaiPanshare,rjyxfx,PikPak_Share_Channel,newproductsourcing,QuarkFree,yunpanNB,kkdj001,xxzlzn,pxyunpanxunlei,jxwpzy,kuakedongman,xiangnikanj,solidsexydoll,guoman4K,zdqxm,kduanju,cilidianying,CBduanju,SharePanFilms,dzsgx,BooksRealm,douerpan,Netdisk_Movies,yunpanquark,ciliziyuanku,jzmm_123pan,wpan8,mqte5,regengguangya,regeng115,regeng123,yy80986098,pan_guangya,guangyapan_episode,guangya_hdhive,guangyapindao,quark_res,domgmingapk,dianying4k,tgbokee,ucshare,gokuapan,WFYSFX03,gimy100,gimy115iso,fcij5,xvth5,xuexiziliaobaibaoku,phzvip,jdbigdiscount,youxigs,zhoulanziyuan,seedhub_pro,jnjy_5,xxziliao,wpzyk,ruanjianfenxiang77,jpnd5,XunLeiPinDao,a123fxme,WPpindao,kuyupan,djya5,zh_vip,gdsharing,guangyaya2026,alyp_17362,baidyunpan,yunpans,rbzhwpzy,Panzi88com \
+    ENABLED_PLUGINS=dyyjpro,duoduo,djgou,feikuai,gaoqing888,hdmoli,haitunsou,hunhepan,ikantv,jutoushe,kkv,dy4k,libvio,lingjisp,lou1,melost,meitizy,miosou,nyaa,ouge,panlian,pansearch,qqpd,quark4k,quarksoo,quarktv,sousou,thepiratebay,ting77,wanou,weibo,xb6v,xiaokupan,xiaozhang,xiaoyu,yingso,yulinshufa,yunso,yunsou,zlxapp,zxzj,rrbt,quarkres,diduan,huban,labi,muou,shandian,zhizhen,clxiong,cyg,jsnoteclub,duanjuw,dyyj,nsgame,cldi,clmao,susu,u3c3,5266ys,dygang,leso,btbtlb,aipan,sopanya,hjzhencai,pan365,buerchen,erxiaopan,woniu \
+    AUTH_ENABLED=false \
+    AUTH_TOKEN_EXPIRY=24
+
+# 构建参数
+ARG VERSION=dev
+ARG BUILD_DATE=unknown
+ARG VCS_REF=unknown
+
+# 添加镜像标签
+LABEL org.opencontainers.image.title="PanSou" \
+      org.opencontainers.image.description="高性能网盘资源搜索API服务" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.url="https://github.com/fish2018/pansou" \
+      org.opencontainers.image.source="https://github.com/fish2018/pansou" \
+      maintainer="fish2018"
+
+# 运行应用
+CMD ["/app/pansou"]
