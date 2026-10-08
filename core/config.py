@@ -44,6 +44,20 @@ def load_config():
 
     webhook_url = _get("WECHAT_WEBHOOK_URL", "")
 
+    def _split_csv(v):
+        if not v:
+            return []
+        return [x.strip() for x in v.split(",") if x.strip()]
+
+    clean_yinliu = _get("CLEAN_YINLIU", True,
+                        lambda v: v.lower() in ("1", "true", "yes"))
+    clean_yinliu_keywords = _split_csv(_get("CLEAN_YINLIU_KEYWORDS", ""))
+    clean_yinliu_extensions = _split_csv(_get("CLEAN_YINLIU_EXTENSIONS", ""))
+    clean_yinliu_excludes = _split_csv(_get("CLEAN_YINLIU_EXCLUDES", ""))
+    clean_yinliu_max_mb = _get("CLEAN_YINLIU_MAX_MB", 5, float)
+    clean_yinliu_aggressive = _get("CLEAN_YINLIU_AGGRESSIVE", False,
+                                   lambda v: v.lower() in ("1", "true", "yes"))
+
     baidu_cookie = _get("BAIDU_COOKIE", "")
     baidu_count = _get("BAIDU_COUNT", None, int)
     baidu_target_folder = _get("BAIDU_TARGET_FOLDER", None)
@@ -60,6 +74,14 @@ def load_config():
         "count": count,
         "cache_expire_hours": cache_expire_hours,
         "target_folder": target_folder,
+        "clean_yinliu": {
+            "enabled": clean_yinliu,
+            "keywords": clean_yinliu_keywords,
+            "extensions": clean_yinliu_extensions,
+            "excludes": clean_yinliu_excludes,
+            "max_small_file_bytes": int(clean_yinliu_max_mb * 1024 * 1024),
+            "aggressive_ext_check": clean_yinliu_aggressive,
+        },
         "wechat": {
             "webhook_url": webhook_url,
         },

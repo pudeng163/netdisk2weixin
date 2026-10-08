@@ -471,6 +471,208 @@ def _upload_yinliu_pdf(kuake_cli, pdf_path, title="", folder_path=""):
     os.system(cmd)
 
 
+def _kuake_list(kuake_cli, path):
+    """列出夸克网盘某目录内容，返回文件条目 list，失败返回 []。"""
+    if not kuake_cli or not os.path.exists(kuake_cli):
+        log_print(f"kuake 可执行文件不存在，无法列出目录: {kuake_cli}", "WARNING")
+        return []
+    try:
+        result = subprocess.run(
+            [kuake_cli, "list", path], capture_output=True, timeout=30,
+            encoding="utf-8", errors="replace",
+        )
+        text = result.stdout.strip()
+        if not text:
+            return []
+        obj = json.loads(text[text.find("{"):]) if text.find("{") >= 0 else {}
+        if not obj.get("success"):
+            log_print(f"kuake list 失败: {obj.get('message')}", "WARNING")
+            return []
+        return obj.get("data", {}).get("list", [])
+    except subprocess.TimeoutExpired:
+        log_print(f"kuake list 超时: {path}", "WARNING")
+        return []
+    except Exception as e:
+        log_print(f"kuake list 异常: {e}", "WARNING")
+        return []
+
+
+def _kuake_info(kuake_cli, path):
+    """查询夸克网盘某文件/目录信息，返回 entry dict 或 None。"""
+    if not kuake_cli or not os.path.exists(kuake_cli):
+        return None
+    try:
+        result = subprocess.run(
+            [kuake_cli, "info", path], capture_output=True, timeout=30,
+            encoding="utf-8", errors="replace",
+        )
+        text = result.stdout.strip()
+        if not text:
+            return None
+        obj = json.loads(text[text.find("{"):]) if text.find("{") >= 0 else {}
+        if not obj.get("success"):
+            return None
+        return obj.get("data")
+    except Exception:
+        return None
+
+
+def _kuake_delete(kuake_cli, path):
+    """删除夸克网盘某文件/目录，返回 True 表示成功。"""
+    if not kuake_cli or not os.path.exists(kuake_cli):
+        log_print(f"kuake 可执行文件不存在，无法删除: {kuake_cli}", "WARNING")
+        return False
+    try:
+        result = subprocess.run(
+            [kuake_cli, "delete", path], capture_output=True, timeout=30,
+            encoding="utf-8", errors="replace",
+        )
+        text = result.stdout.strip()
+        ok = result.returncode == 0 and ("success" in text.lower() or "成功" in text)
+        if not ok:
+            log_print(f"kuake delete 失败: {path} | {text[:200]}", "WARNING")
+        return ok
+    except subprocess.TimeoutExpired:
+        log_print(f"kuake delete 超时: {path}", "WARNING")
+        return False
+    except Exception as e:
+        log_print(f"kuake delete 异常: {e}", "WARNING")
+        return False
+
+
+def _resolve_top_fids_to_paths(kuake_cli, folder_fid, top_fids):
+    """把转存返回的 top_fids 列表解析成对应的网盘路径。
+
+    优先用 fid 精确匹配 list 结果，匹配不到再遍历子目录。
+    """
+    if not top_fids:
+        return []
+
+    if not folder_fid or folder_fid == "0":
+        root_path = "/"
+    else:
+        root_path = _resolve_fid_to_path(kuake_cli, folder_fid) or "/"
+
+    root_entries = _kuake_list(kuake_cli, root_path)
+    fid_to_entry = {e.get("fid"): e for e in root_entries}
+
+    resolved = []
+    unresolved = list(top_fids)
+
+    for fid in unresolved[:]:
+        entry = fid_to_entry.get(fid)
+        if entry:
+            resolved.append(entry["path"])
+            unresolved.remove(fid)
+
+    if unresolved and root_path == "/":
+        pass
+
+    return resolved
+
+
+def _collect_all_paths(kuake_cli, start_path):
+    """递归收集目录下所有文件/目录路径（含 start_path 自身）。"""
+    paths = [start_path]
+    for entry in _kuake_list(kuake_cli, start_path):
+        child_path = entry.get("path", "")
+        if not child_path:
+            continue
+        if entry.get("dir"):
+            paths.extend(_collect_all_paths(kuake_cli, child_path))
+        else:
+            paths.append(child_path)
+    return paths
+
+
+def clean_yinliu_after_save(kuake_cli, top_paths, filter_cfg, excludes=None):
+    """对一组转存顶层路径进行引流文件清理。
+
+    Args:
+        kuake_cli: kuake 可执行文件路径
+        top_paths: 转存到网盘后顶层条目的路径列表
+        filter_cfg: 过滤配置 dict，来自 config["clean_yinliu"]
+        excludes: 额外排除关键词列表
+
+    Returns:
+        {"deleted": [...], "total": int}
+    """
+    from core.yinliu_filter import match_yinliu
+
+    if not kuake_cli or not os.path.exists(kuake_cli):
+        log_print("kuake CLI 不可用，跳过引流清理", "WARNING")
+        return {"deleted": [], "total": 0}
+
+    keywords = filter_cfg.get("keywords") or None
+    extensions = filter_cfg.get("extensions") or None
+    max_bytes = filter_cfg.get("max_small_file_bytes")
+
+    all_excludes = list(filter_cfg.get("excludes") or [])
+    if excludes:
+        all_excludes.extend(excludes)
+
+    if not top_paths:
+        return {"deleted": [], "total": 0}
+
+    deleted = []
+    checked = 0
+
+    for top_path in top_paths:
+        info = _kuake_info(kuake_cli, top_path)
+        is_dir = info.get("dir", True) if info else True
+
+        if not is_dir and info:
+            checked += 1
+            size = info.get("size", 0)
+            is_yl, reason = match_yinliu(
+                top_path, size,
+                keywords=keywords or None,
+                extensions=extensions or None,
+                max_small_file_bytes=max_bytes,
+                extra_excludes=all_excludes or None,
+                aggressive_ext_check=filter_cfg.get("aggressive_ext_check", False),
+            )
+            if is_yl:
+                log_print(f"发现引流文件: {top_path} | {reason}", "INFO")
+                if _kuake_delete(kuake_cli, top_path):
+                    deleted.append(top_path)
+                    log_print(f"已删除: {top_path}", "SUCCESS")
+                else:
+                    log_print(f"删除失败: {top_path}", "WARNING")
+            continue
+
+        queue = [top_path]
+        while queue:
+            cur = queue.pop(0)
+            entries = _kuake_list(kuake_cli, cur)
+            for entry in entries:
+                checked += 1
+                path = entry.get("path", "")
+                size = entry.get("size", 0)
+
+                is_yl, reason = match_yinliu(
+                    path, size,
+                    keywords=keywords or None,
+                    extensions=extensions or None,
+                    max_small_file_bytes=max_bytes,
+                    extra_excludes=all_excludes or None,
+                    aggressive_ext_check=filter_cfg.get("aggressive_ext_check", False),
+                )
+
+                if is_yl:
+                    log_print(f"发现引流文件: {path} | {reason}", "INFO")
+                    if _kuake_delete(kuake_cli, path):
+                        deleted.append(path)
+                        log_print(f"已删除: {path}", "SUCCESS")
+                    else:
+                        log_print(f"删除失败: {path}", "WARNING")
+                elif entry.get("dir"):
+                    queue.append(path)
+
+    log_print(f"引流清理完成：检查 {checked} 个，删除 {len(deleted)} 个", "INFO")
+    return {"deleted": deleted, "total": checked}
+
+
 # ---------------------------------------------------------------------------
 # 统一入口
 # ---------------------------------------------------------------------------
@@ -478,7 +680,7 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
                                 quark_cookie, kw=None,
                                 include=None, exclude=None, preview_only=False,
                                 selected_items=None, folder_fid="0",
-                                force=False):
+                                force=False, filter_cfg=None):
     manager = QuarkPanFileManager(headless=False, slow_mo=500,
                                   cookie=quark_cookie)
 
@@ -544,6 +746,24 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
             log_print(f"转存失败 [{index+1}/{count}]: {note} - {e}", "ERROR")
 
     success_count = sum(1 for r in save_results if r["status"] == "success")
+
+    if filter_cfg and filter_cfg.get("enabled") and success_count > 0:
+        log_print("开始清理转存内容中的引流文件...", "INFO")
+        all_top_paths = []
+        for r in save_results:
+            if r["status"] == "success" and r.get("file_id"):
+                paths = _resolve_top_fids_to_paths(kuake_cli, folder_fid, r["file_id"])
+                all_top_paths.extend(paths)
+        try:
+            pdf_name = os.path.splitext(os.path.basename(pdf_path))[0] if pdf_path else ""
+            cleanup_excludes = [pdf_name] if pdf_name else None
+            cleanup_result = clean_yinliu_after_save(
+                kuake_cli, all_top_paths, filter_cfg, excludes=cleanup_excludes,
+            )
+            log_print(f"引流清理完成: 删除 {len(cleanup_result['deleted'])} 个",
+                      "SUCCESS" if cleanup_result["deleted"] else "INFO")
+        except Exception as e:
+            log_print(f"引流清理异常: {e}", "WARNING")
 
     share_results = []
     share_success_count = 0
@@ -658,10 +878,14 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
                 "share_success_count": 0, "share_results": [],
                 "wechat_result": None, "preview": preview_only, "items": None}
 
+    filter_cfg = config.get("clean_yinliu", {})
+    if filter_cfg and filter_cfg.get("enabled"):
+        log_print("已开启转存后引流文件自动清理", "INFO")
+
     return asyncio.run(_batch_save_and_share(
         count=count, webhook_url=webhook_url, kuake_cli=kuake_cli,
         pdf_path=pdf_path, quark_cookie=quark_cookie,
         kw=kw, include=include, exclude=exclude, preview_only=preview_only,
         selected_items=selected_items, folder_fid=folder_fid,
-        force=force,
+        force=force, filter_cfg=filter_cfg,
     ))
