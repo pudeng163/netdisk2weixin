@@ -1,0 +1,30 @@
+EP194 - 耐刷王！小米平板5刷澎湃OS+Win11双系统保姆级指南
+● 小米设备驱动：https://pan.quark.cn/s/01ba8bdbdae1
+
+● 小米解锁工具（官网）：https://web.vip.miui.com/page/info/mio/mio/unlock
+
+● 小米解锁工具：https://pan.quark.cn/s/9641c8669c55
+
+● Mindows工具箱（官网）：https://mindows.cn/index.html
+
+● Mindows工具箱（来自Bilibili@某贼）：https://pan.quark.cn/s/28bf18fbf6f7
+
+● Mindows工具箱下载修复包：https://pan.quark.cn/s/a5eae36d2b3d
+
+● Mindows助手APP ：https://pan.quark.cn/s/0ca8de3c49d9
+
+● Magisk中文网：https://magiskcn.com/magisk-download
+
+● Magisk面具：https://pan.quark.cn/s/f04d2ba1e0d7
+
+● 小米官方固件下载（澎湃OS）：https://hyperos.fans/zh/devices
+
+● 小米官方固件下载（MIUI）：https://roms.miuier.com/zh-cn/devices
+
+● payload-dumper-go-boot：https://magiskcn.com/payload-dumper-go-boot
+
+● payload-dumper-go-boot（备用）：https://pan.quark.cn/s/3963b5f1871f
+
+● adb fastboot：https://mrzzoxo.lanzoue.com/b02plghuh
+
+● adb fastboot（备用）：https://pan.quark.cn/s/05a4021be355

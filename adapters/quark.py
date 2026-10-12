@@ -585,6 +585,51 @@ def _collect_all_paths(kuake_cli, start_path):
     return paths
 
 
+def _write_clean_record(records, stats):
+    """把本次引流清理扫描到的全部文件名写入按日期汇总的记录文件。
+
+    Args:
+        records: 明细列表，每项 dict: {"path","size","is_yinliu","deleted","reason"}
+        stats: {"checked": int, "deleted": int}
+
+    Returns:
+        记录文件路径（写失败则返回 None）
+    """
+    from datetime import datetime
+    from core.config import LOG_DIR
+
+    try:
+        os.makedirs(LOG_DIR, exist_ok=True)
+        now = datetime.now()
+        out_path = os.path.join(str(LOG_DIR), f"yinliu_clean_{now:%Y-%m-%d}.txt")
+        with open(out_path, "a", encoding="utf-8") as f:
+            f.write("=" * 70 + "\n")
+            f.write(f"引流清理记录  {now:%Y-%m-%d %H:%M:%S}\n")
+            f.write(f"扫描 {stats.get('checked', 0)} 个文件，"
+                    f"删除 {stats.get('deleted', 0)} 个引流文件\n")
+            f.write("-" * 70 + "\n")
+            for r in records:
+                size = r.get("size", 0) or 0
+                size_str = f"{size}B" if size < 1024 else f"{size / 1024:.1f}KB" \
+                    if size < 1024 * 1024 else f"{size / 1024 / 1024:.1f}MB"
+                if r.get("deleted"):
+                    flag = "[已删除]"
+                elif r.get("is_yinliu"):
+                    flag = "[引流未删]"
+                elif r.get("is_dir"):
+                    flag = "[目录]"
+                else:
+                    flag = "[保留]"
+                reason = f"  <{r['reason']}>" if r.get("reason") else ""
+                f.write(f"{flag} {r.get('path', '')}  ({size_str}){reason}\n")
+            f.write("\n")
+        log_print(f"引流清理记录已写入: {out_path}", "INFO")
+        return out_path
+    except Exception as e:
+        log_print(f"写入引流清理记录失败: {e}", "WARNING")
+        return None
+
+
 def clean_yinliu_after_save(kuake_cli, top_paths, filter_cfg, excludes=None):
     """对一组转存顶层路径进行引流文件清理。
 
@@ -616,6 +661,7 @@ def clean_yinliu_after_save(kuake_cli, top_paths, filter_cfg, excludes=None):
 
     deleted = []
     checked = 0
+    records = []
 
     for top_path in top_paths:
         info = _kuake_info(kuake_cli, top_path)
@@ -634,11 +680,18 @@ def clean_yinliu_after_save(kuake_cli, top_paths, filter_cfg, excludes=None):
             )
             if is_yl:
                 log_print(f"发现引流文件: {top_path} | {reason}", "INFO")
-                if _kuake_delete(kuake_cli, top_path):
+                ok = _kuake_delete(kuake_cli, top_path)
+                if ok:
                     deleted.append(top_path)
                     log_print(f"已删除: {top_path}", "SUCCESS")
                 else:
                     log_print(f"删除失败: {top_path}", "WARNING")
+                records.append({"path": top_path, "size": size, "is_yinliu": True,
+                                "deleted": bool(ok), "reason": reason,
+                                "is_dir": False})
+            else:
+                records.append({"path": top_path, "size": size, "is_yinliu": False,
+                                "deleted": False, "reason": "", "is_dir": False})
             continue
 
         queue = [top_path]
@@ -661,15 +714,24 @@ def clean_yinliu_after_save(kuake_cli, top_paths, filter_cfg, excludes=None):
 
                 if is_yl:
                     log_print(f"发现引流文件: {path} | {reason}", "INFO")
-                    if _kuake_delete(kuake_cli, path):
+                    ok = _kuake_delete(kuake_cli, path)
+                    if ok:
                         deleted.append(path)
                         log_print(f"已删除: {path}", "SUCCESS")
                     else:
                         log_print(f"删除失败: {path}", "WARNING")
-                elif entry.get("dir"):
-                    queue.append(path)
+                    records.append({"path": path, "size": size, "is_yinliu": True,
+                                    "deleted": bool(ok), "reason": reason,
+                                    "is_dir": False})
+                else:
+                    records.append({"path": path, "size": size, "is_yinliu": False,
+                                    "deleted": False, "reason": "",
+                                    "is_dir": bool(entry.get("dir"))})
+                    if entry.get("dir"):
+                        queue.append(path)
 
     log_print(f"引流清理完成：检查 {checked} 个，删除 {len(deleted)} 个", "INFO")
+    _write_clean_record(records, {"checked": checked, "deleted": len(deleted)})
     return {"deleted": deleted, "total": checked}
 
 

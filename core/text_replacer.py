@@ -190,6 +190,23 @@ async def run_from_text(text, save_results=False, push_wechat=False):
         new_url = None
         error_msg = None
 
+        # 提取该链接在原文本中的「原文标题」：
+        # 取链接所在行的行首部分（去掉链接本身），作为对用户展示的标题，
+        # 避免推送时用的是分享接口返回的内部标题（常与原标题不符）。
+        origin_title = ""
+        try:
+            line_start = new_text.rfind("\n", 0, link["span"][0]) + 1
+            line_end = new_text.find("\n", link["span"][1])
+            if line_end < 0:
+                line_end = len(new_text)
+            raw_line = new_text[line_start:line_end]
+            origin_title = raw_line.replace(original_url, "")
+            # 去掉行尾的分隔符（：/ - / | 等）
+            origin_title = origin_title.strip().rstrip("：:-—|｜ \t")
+            origin_title = re.sub(r"\s+", " ", origin_title).strip()
+        except Exception:
+            origin_title = ""
+
         try:
             log_print(f"\n--- 处理 {i+1}/{len(links)}: [{platform}] {original_url[:60]} ---")
             title = ""
@@ -235,6 +252,7 @@ async def run_from_text(text, save_results=False, push_wechat=False):
             "password": password,
             "new_url": new_url,
             "title": title,
+            "origin_title": origin_title,
             "size": size,
             "status": "success" if new_url else "error",
             "message": error_msg,
@@ -266,8 +284,12 @@ async def run_from_text(text, save_results=False, push_wechat=False):
             shares = []
             for r in results:
                 if r["new_url"]:
+                    # 标题优先用原文标题（与用户看到的文案一致）；
+                    # 原文标题取不到时回退到分享返回的内部标题
+                    note = (r.get("origin_title") or r.get("title")
+                            or f"资源{r.get('index','')}")
                     shares.append({
-                        "note": r.get("platform", "") + " " + r.get("original_url", "")[-20:],
+                        "note": note,
                         "share_url": r["new_url"],
                     })
             send_wechat_notification(webhook_url, shares, kw="文本替换")
@@ -301,7 +323,8 @@ async def run_from_text(text, save_results=False, push_wechat=False):
             for r in results:
                 if r["status"] == "success" and r.get("new_url"):
                     feishu_items.append({
-                        "name": r.get("title") or f"{r.get('platform','?')}_{r.get('index','?')}",
+                        "name": (r.get("origin_title") or r.get("title")
+                                 or f"{r.get('platform','?')}_{r.get('index','?')}"),
                         "url": r["new_url"],
                         "size": r.get("size", ""),
                         "tag": r.get("platform", ""),

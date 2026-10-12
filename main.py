@@ -46,6 +46,16 @@ def run_platform(platform, count, kw=None, include=None, exclude=None,
     except Exception as e:
         log_print(f"平台 {platform} 执行异常: {e}", "ERROR")
         result = {"code": 500, "message": str(e), "share_results": []}
+    # 预览模式：把随机抽中的条目打印出来，便于在执行前确认
+    if preview_only and isinstance(result, dict) and result.get("items"):
+        items = result["items"]
+        print("=" * 60)
+        print(f"随机预览：共 {len(items)} 条（未转存）")
+        print("-" * 60)
+        for it in items:
+            print(f"[{it.get('index', '')}] {it.get('note', '无标题')}")
+            print(f"     {it.get('url', '')}")
+        print("=" * 60)
     log_print(f"平台 {platform} 结束: {result.get('message', '')}")
     return result
 
