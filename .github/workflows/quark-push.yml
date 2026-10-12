@@ -4,43 +4,59 @@ on:
   schedule:
     - cron: '11 0-13 * * *'
   workflow_dispatch:
+    inputs:
+      count:
+        description: '推送数量'
+        required: false
+        default: '6'
+      exclude:
+        description: '排除关键词（空格分隔）'
+        required: false
+        default: '短剧'
 
 jobs:
   push:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: .
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup .env from Secrets
-        shell: pwsh
+        shell: bash
+        env:
+          WECHAT_WEBHOOK_URL: ${{ secrets.WECHAT_WEBHOOK_URL }}
+          BAIDU_COOKIE: ${{ secrets.BAIDU_COOKIE }}
+          QUARK_COOKIE: ${{ secrets.QUARK_COOKIE }}
+          KUAKE_COOKIE: ${{ secrets.KUAKE_COOKIE }}
+          QUARK_FOLDER_FID: ${{ secrets.QUARK_FOLDER_FID }}
         run: |
-          $lines = @(
-            "COUNT=6",
-            "CACHE_EXPIRE_HOURS=12",
-            "TARGET_FOLDER=下载",
-            "WECHAT_WEBHOOK_URL=${{ secrets.WECHAT_WEBHOOK_URL }}",
-            "BAIDU_COOKIE=${{ secrets.BAIDU_COOKIE }}",
-            "QUARK_COOKIE=${{ secrets.QUARK_COOKIE }}",
-            "KUAKE_COOKIE=${{ secrets.KUAKE_COOKIE }}",
-            "QUARK_FOLDER_FID=${{ secrets.QUARK_FOLDER_FID }}",
-            "QUARK_YINLIU_PDF=assets/99999.pdf",
-            "QUARK_YINLIU_PROBABILITY=1.0",
-            "QUARK_YINLIU_SUBDIR=自动转存"
-          )
-          [System.IO.File]::WriteAllLines(".env", $lines)
+          cat > .env <<EOF
+          COUNT=${COUNT:-6}
+          CACHE_EXPIRE_HOURS=12
+          TARGET_FOLDER=下载
+          LOCAL_POOL_ENABLED=true
+          RESOURCE_POOL_FILE=资源池.json
+          WECHAT_WEBHOOK_URL=${WECHAT_WEBHOOK_URL}
+          BAIDU_COOKIE=${BAIDU_COOKIE}
+          QUARK_COOKIE=${QUARK_COOKIE}
+          KUAKE_COOKIE=${KUAKE_COOKIE}
+          QUARK_FOLDER_FID=${QUARK_FOLDER_FID}
+          QUARK_YINLIU_PDF=assets/99999.pdf
+          QUARK_YINLIU_PROBABILITY=1.0
+          QUARK_YINLIU_SUBDIR=自动转存
+          EOF
+          echo "已生成 .env"
 
       - name: Ensure kuake CLI exists
-        shell: pwsh
+        shell: bash
         run: |
-          if (!(Test-Path "assets/bin/kuake-v1.5.0-windows-amd64.exe")) {
-            Write-Error "assets/bin/kuake-v1.5.0-windows-amd64.exe not found. Pre-place it on the runner machine."
+          CLI=assets/bin/kuake-v1.5.0-linux-amd64
+          if [ ! -f "$CLI" ]; then
+            echo "::error::$CLI not found. Please commit the linux build into assets/bin/."
             exit 1
-          }
-          Write-Host "kuake CLI OK: $((Get-Item 'assets/bin/kuake-v1.5.0-windows-amd64.exe').Length) bytes"
+          fi
+          chmod +x "$CLI"
+          echo "kuake CLI OK: $(stat -c%s "$CLI") bytes"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -48,7 +64,19 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
+        shell: bash
         run: pip install -r requirements.txt
 
-      - name: Push 8 除了短剧
-        run: python main.py quark --count 8 --exclude 短剧
+      - name: Smoke test (import + 资源池读取)
+        shell: bash
+        run: |
+          python -c "import sys; sys.path.insert(0,'.'); import main; print('main import OK')"
+          python -c "import sys; sys.path.insert(0,'.'); from core import cache; items = cache.load_local_pool('quark') or []; print(f'资源池载入 {len(items)} 条')"
+
+      - name: Push resources
+        shell: bash
+        env:
+          COUNT: ${{ github.event.inputs.count || '6' }}
+          EXCLUDE: ${{ github.event.inputs.exclude || '短剧' }}
+        run: |
+          python main.py quark --count "$COUNT" --exclude $EXCLUDE

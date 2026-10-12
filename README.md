@@ -39,10 +39,11 @@ cd netdisk2weixin
 pip install -r requirements.txt
 ```
 
-> 夸克网盘首次登录需要 playwright 浏览器，安装一次即可：
-> ```bash
-> playwright install chromium
-> ```
+> **本项目已移除 playwright**，夸克不再启动浏览器。
+> 你只需提供 Cookie：把浏览器登录 pan.quark.cn 后的 Cookie 整串填到 `.env` 的 `QUARK_COOKIE`，
+> 或保存到 `cookies/quark_cookie.txt`。两者都没有时程序会直接报错提示（不会静默失败）。
+>
+> 获取 Cookie 的方式：浏览器登录 pan.quark.cn → F12 → Network → 任意请求 → 复制请求头里的 `cookie` 整行。
 
 ### 1.1 PanSou 自建后端（重要！）
 

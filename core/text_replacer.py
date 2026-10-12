@@ -76,8 +76,7 @@ async def _save_and_share_quark(url, password, folder_fid, kuake_cli, pdf_path="
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}pwd={password}"
 
-    manager = QuarkPanFileManager(headless=False, slow_mo=500,
-                                  cookie=quark_cookie)
+    manager = QuarkPanFileManager(cookie=quark_cookie)
 
     save_result = await manager.run(url.strip(), folder_fid)
     if save_result is None:

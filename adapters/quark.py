@@ -1,7 +1,8 @@
 """夸克网盘适配器。
 
 迁移自 fresh_quark2weixin.py，实现统一适配器接口 run()。
-依赖 playwright（登录）+ httpx（API）+ kuake CLI（上传引流 PDF）。
+依赖：httpx（转存/分享 API）+ kuake CLI（上传引流 PDF）。
+Cookie 通过 .env 的 QUARK_COOKIE 或 cookie 文件提供，无需浏览器。
 kuake 可执行文件路径与引流 PDF 路径已配置化（core.config）。
 """
 import os
@@ -64,14 +65,6 @@ def format_size(size_bytes):
     return f"{size_bytes}B"
 
 
-def save_text(path, content, mode="w"):
-    d = os.path.dirname(path)
-    if d:
-        os.makedirs(d, exist_ok=True)
-    with open(path, mode, encoding="utf-8") as f:
-        f.write(content)
-
-
 def _normalize_title(s):
     """去掉空白/标点/转全角，用于模糊匹配。"""
     if not s:
@@ -131,9 +124,14 @@ def _is_pushed(item, pushed_titles, pushed_urls, pushed_normed):
 # 登录
 # ---------------------------------------------------------------------------
 class QuarkLogin:
-    def __init__(self, headless=True, slow_mo=0, cookie_file=None, cookies_env=""):
-        self.headless = headless
-        self.slow_mo = slow_mo
+    """夸克登录态解析。
+
+    不再依赖浏览器（playwright 已移除），改为纯 Cookie 模式：
+    优先取 .env 的 QUARK_COOKIE，其次读 cookies/quark_cookie.txt。
+    两者都没有时直接报错，提示用户手动配置。
+    """
+
+    def __init__(self, cookie_file=None, cookies_env=""):
         self.cookie_file = cookie_file
         self.cookies_env = cookies_env
 
@@ -178,39 +176,20 @@ class QuarkLogin:
             return self.dict_to_cookie_str(cookie)
         if isinstance(cookie, str):
             return cookie
-        # 触发浏览器登录
-        return self._browser_login()
-
-    def _browser_login(self):
-        try:
-            from playwright.sync_api import sync_playwright
-        except ImportError:
-            log_print("未安装 playwright，无法浏览器登录", "ERROR")
-            return None
-        with sync_playwright() as p:
-            context = p.chromium.launch_persistent_context(
-                str(LOG_DIR / "web_browser_data"),
-                headless=self.headless,
-                slow_mo=self.slow_mo,
-                args=["--start-maximized"],
-                no_viewport=True,
-            )
-            page = context.pages[0]
-            page.goto("https://pan.quark.cn/")
-            input("请在弹出的浏览器中登录夸克，登录成功后按 Enter 继续...")
-            cookies = page.context.cookies()
-            cookies_dict = self.transfer_cookies(cookies)
-            save_text(self.cookie_file, json.dumps(cookies_dict, ensure_ascii=False))
-            return self.dict_to_cookie_str(cookies_dict)
+        # 无 Cookie 时不再启动浏览器，直接报错提示用户配置
+        log_print(
+            "未找到夸克 Cookie。请在 .env 中配置 QUARK_COOKIE，"
+            "或在 cookies/quark_cookie.txt 中提供 Cookie 后重试。",
+            "ERROR"
+        )
+        return None
 
 
 # ---------------------------------------------------------------------------
 # 文件管理器
 # ---------------------------------------------------------------------------
 class QuarkPanFileManager:
-    def __init__(self, headless=False, slow_mo=0, cookie="", cookie_file=None):
-        self.headless = headless
-        self.slow_mo = slow_mo
+    def __init__(self, cookie="", cookie_file=None):
         self.cookie_file = cookie_file
         self.cookies = self._get_cookies(cookie)
         self.headers = {
@@ -226,8 +205,7 @@ class QuarkPanFileManager:
     def _get_cookies(self, cookie):
         if cookie:
             return cookie
-        login = QuarkLogin(headless=self.headless, slow_mo=self.slow_mo,
-                           cookie_file=self.cookie_file)
+        login = QuarkLogin(cookie_file=self.cookie_file)
         return login.get_cookies() or ""
 
     @staticmethod
@@ -743,8 +721,7 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
                                 include=None, exclude=None, preview_only=False,
                                 selected_items=None, folder_fid="0",
                                 force=False, filter_cfg=None):
-    manager = QuarkPanFileManager(headless=False, slow_mo=500,
-                                  cookie=quark_cookie)
+    manager = QuarkPanFileManager(cookie=quark_cookie)
 
     folder_path = _resolve_fid_to_path(kuake_cli, folder_fid)
 
