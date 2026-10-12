@@ -3,6 +3,8 @@ config.yaml
 .env
 config/
 *.json
+# 例外：本地资源池（数据来源，需入库共享）
+!资源池.json
 
 # 运行时数据
 data/cache/

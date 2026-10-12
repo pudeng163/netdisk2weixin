@@ -14,6 +14,32 @@ LOG_DIR = DATA_DIR / "logs"
 SHARE_DIR = DATA_DIR / "share"
 ASSETS_DIR = PROJECT_ROOT / "assets"
 
+# 本地资源池文件（由 tools/list_resources.py 导出，结构 [{index, note, url}, ...]）。
+# 存在时 fetch_api_data 会优先从这里取数，避免依赖 PanSou 在线服务。
+# 可用 .env 的 RESOURCE_POOL_FILE 覆盖（相对项目根目录或绝对路径）。
+DEFAULT_RESOURCE_POOL_FILE = PROJECT_ROOT / "资源池.json"
+
+
+def get_resource_pool_file():
+    """返回本地资源池 JSON 的绝对路径。
+
+    优先取 .env 的 RESOURCE_POOL_FILE（相对路径按项目根解析），
+    否则用项目根下的 资源池.json。
+    """
+    _load_env()
+    rel = os.getenv("RESOURCE_POOL_FILE", "").strip()
+    if not rel:
+        return DEFAULT_RESOURCE_POOL_FILE
+    p = Path(rel)
+    return p if p.is_absolute() else (PROJECT_ROOT / p)
+
+
+def is_local_pool_enabled():
+    """本地资源池总开关：LOCAL_POOL_ENABLED=false 时强制走 API。"""
+    _load_env()
+    v = os.getenv("LOCAL_POOL_ENABLED", "true").strip().lower()
+    return v not in ("0", "false", "no", "off")
+
 
 def _load_env():
     try:

@@ -1,12 +1,12 @@
 """统一 API 数据获取与缓存。
 
-两个项目都请求同一个聚合 API（https://so.252035.xyz/api/search），
-仅 cloud_types 不同（baidu / quark），缓存结构略有差异：
-- 百度：缓存整个 data 对象，用 data.merged_by_type.baidu 取资源，带 cache_time
-- 夸克：缓存资源列表本身，带 timestamp
+数据来源（按优先级）：
+1. 本地资源池 JSON（默认 项目根/资源池.json，可用 .env 的 RESOURCE_POOL_FILE 覆盖）
+   —— 由 tools/list_resources.py 导出，结构 [{index, note, url}, ...]
+2. PanSou 聚合 API（http://localhost:8888/api/search）—— 本地池不可用时的兜底
+3. 磁盘缓存（API 请求失败时的最后兜底）
 
-统一为：缓存按 cloud_type 分文件存储，结构统一为
-{ "timestamp": ..., "data": <资源列表> }。
+三个来源统一返回 [{"note": ..., "url": ...}, ...] 结构。
 """
 import json
 import os
@@ -14,11 +14,61 @@ import re
 import time
 import httpx
 from .logger import log_print
-from .config import CACHE_DIR
+from .config import (CACHE_DIR, get_resource_pool_file,
+                     is_local_pool_enabled)
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 API_URL = "http://localhost:8888/api/search"
+
+
+def load_local_pool(cloud_type="quark", include=None, exclude=None):
+    """读取本地资源池 JSON。
+
+    仅对 quark 生效（资源池.json 是夸克资源清单，不含百度）。
+    返回 [{"note":..., "url":...}, ...]；文件不存在或为空时返回 None
+    （None 表示"本地池不可用"，调用方可据此回退到 API）。
+    """
+    if cloud_type != "quark":
+        return None
+    if not is_local_pool_enabled():
+        log_print("本地资源池已通过 LOCAL_POOL_ENABLED=false 关闭，改用 API", "INFO")
+        return None
+
+    path = get_resource_pool_file()
+    if not os.path.exists(path):
+        log_print(f"本地资源池不存在（{path}），回退 API", "WARNING")
+        return None
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except Exception as e:
+        log_print(f"读取本地资源池失败（{path}）: {e}，回退 API", "WARNING")
+        return None
+
+    # 兼容两种结构：裸列表，或 {"data": [...]}
+    if isinstance(raw, dict):
+        raw = raw.get("data", [])
+
+    items = []
+    for it in raw or []:
+        if not isinstance(it, dict):
+            continue
+        note = (it.get("note") or "").strip()
+        url = (it.get("url") or "").strip()
+        if not url:
+            continue
+        items.append({"note": note, "url": url})
+
+    if not items:
+        log_print(f"本地资源池为空（{path}），回退 API", "WARNING")
+        return None
+
+    items = deduplicate_data(items)
+    items = local_filter(items, include, exclude)
+    log_print(f"从本地资源池读取 {len(items)} 条（{path}）", "SUCCESS")
+    return items
 
 
 def _safe_kw(kw: str) -> str:
@@ -104,14 +154,22 @@ def local_filter(data, include=None, exclude=None):
 
 def fetch_api_data(cloud_type, kw="1", force_refresh=False, expire_hours=24.0,
                    include=None, exclude=None):
-    """从聚合 API 获取指定网盘类型的资源列表。
+    """获取指定网盘类型的资源列表。
+
+    优先级：本地资源池 JSON → PanSou API（含磁盘缓存）→ 过期缓存兜底。
 
     :param cloud_type: 'baidu' / 'quark'
-    :param kw: 搜索关键词
-    :param force_refresh: 强制刷新
+    :param kw: 搜索关键词（仅 API 路径使用；本地池路径忽略）
+    :param force_refresh: 强制刷新（跳过 API 磁盘缓存；本地池为静态文件，不受影响）
     :param expire_hours: 缓存过期小时（默认 24）
     :param include/exclude: 关键词过滤（本地过滤，不影响缓存）
     """
+    # ① 本地资源池优先（仅 quark；命中即返回，不再请求 API）
+    local_items = load_local_pool(cloud_type, include=include, exclude=exclude)
+    if local_items is not None:
+        return local_items
+
+    # ② 回退 PanSou API 通路
     use_kw = kw if kw else "1"
 
     use_cache = (not force_refresh) and \
