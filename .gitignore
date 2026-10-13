@@ -7,9 +7,7 @@ config/
 !资源池.json
 
 # 运行时数据
-data/cache/
-data/logs/
-data/share/
+data/
 *.log
 
 # Python

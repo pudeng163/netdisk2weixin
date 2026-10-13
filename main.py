@@ -7,6 +7,12 @@
     python main.py all          # 两个都跑，合并结果统一推送
     python main.py web          # 启动 Web 管理界面 (默认端口 5003)
 
+PanSou 服务管理：
+    python main.py pansou start     # 自动选二进制并后台启动
+    python main.py pansou status    # 查看运行状态与插件数
+    python main.py pansou stop      # 停止
+    python main.py diagnose         # 环境诊断（平台→二进制→服务）
+
 文本替换模式：
     python main.py --text "xxx https://pan.quark.cn/s/abc 提取码: 1234 xxx"
     python main.py --text-file input.txt --output output.txt
@@ -60,11 +66,50 @@ def run_platform(platform, count, kw=None, include=None, exclude=None,
     return result
 
 
+def run_pansou(action="start", wait=60, foreground=False):
+    """PanSou 服务管理：start / stop / status / restart。"""
+    from core import pansou_launcher as pl
+
+    if action == "start":
+        r = pl.start(foreground=foreground, wait=wait)
+        return 0 if r["ok"] else 1
+    if action == "stop":
+        r = pl.stop()
+        return 0 if r["ok"] else 1
+    if action == "restart":
+        pl.stop()
+        r = pl.start(wait=wait)
+        return 0 if r["ok"] else 1
+    # status
+    st = pl.status()
+    print("=" * 60)
+    print("PanSou 状态")
+    print("-" * 60)
+    print(f"  运行中    {'是' if st['running'] else '否'}")
+    print(f"  地址      {st['url']}")
+    if st["running"]:
+        print(f"  插件数    {st['plugin_count']}")
+        if st["plugin_count"] == 0:
+            print("  ⚠ 插件数为 0 —— 搜索将永远返回 0 条！检查 ENABLED_PLUGINS")
+    print(f"  PID       {st['pid']}（存活={st['pid_alive']}）")
+    print(f"  日志      {st['log']}")
+    print("=" * 60)
+    return 0 if st["running"] and st["plugin_count"] > 0 else 1
+
+
 def main():
     parser = argparse.ArgumentParser(description="网盘拉新统一入口")
     parser.add_argument("platform", nargs="?", default="all",
-                        choices=list(ADAPTERS) + ["all", "web"],
-                        help="baidu / quark / all / web")
+                        choices=list(ADAPTERS) + ["all", "web", "pansou", "diagnose"],
+                        help="baidu / quark / all / web / pansou / diagnose")
+    # pansou 子动作（仅当 platform=pansou 时有意义）
+    parser.add_argument("action", nargs="?", default="start",
+                        choices=["start", "stop", "status", "restart"],
+                        help="当 platform=pansou 时指定动作，默认 start")
+    parser.add_argument("--foreground", action="store_true", default=False,
+                        help="PanSou 前台启动（日志直接打到终端，Ctrl+C 退出）")
+    parser.add_argument("--wait", type=int, default=60,
+                        help="PanSou 启动后等待就绪的秒数，默认 60")
     parser.add_argument("--count", type=int, default=None, help="覆盖转存数量")
     parser.add_argument("--kw", type=str, default=None, help="API 搜索关键词")
     parser.add_argument("--include", type=str, action="append", default=None,
@@ -87,6 +132,14 @@ def main():
     parser.add_argument("--push-wechat", action="store_true", default=True,
                         help="替换后推送企业微信（摘要 + 完整文本）")
     args = parser.parse_args()
+
+    # PanSou 服务管理与环境诊断（不涉及资源转存）
+    if args.platform == "pansou":
+        return run_pansou(args.action, wait=args.wait,
+                          foreground=args.foreground)
+    if args.platform == "diagnose":
+        from tools.diagnose import main as diagnose_main
+        return diagnose_main()
 
     if args.text or args.text_file:
         from core.text_replacer import run_from_text
@@ -136,7 +189,8 @@ def main():
                      preview_only=args.preview)
 
     log_print("全部任务完成")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)

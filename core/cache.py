@@ -3,7 +3,8 @@
 数据来源（按优先级）：
 1. 本地资源池 JSON（默认 项目根/资源池.json，可用 .env 的 RESOURCE_POOL_FILE 覆盖）
    —— 由 tools/list_resources.py 导出，结构 [{index, note, url}, ...]
-2. PanSou 聚合 API（http://localhost:8888/api/search）—— 本地池不可用时的兜底
+2. PanSou 聚合 API（地址由 .env 的 PANSOU_HOST/PANSOU_PORT 决定，
+   默认 http://127.0.0.1:8888/api/search）—— 本地池不可用时的兜底
 3. 磁盘缓存（API 请求失败时的最后兜底）
 
 三个来源统一返回 [{"note": ..., "url": ...}, ...] 结构。
@@ -15,11 +16,9 @@ import time
 import httpx
 from .logger import log_print
 from .config import (CACHE_DIR, get_resource_pool_file,
-                     is_local_pool_enabled)
+                     is_local_pool_enabled, get_pansou_api_url)
 
 os.makedirs(CACHE_DIR, exist_ok=True)
-
-API_URL = "http://localhost:8888/api/search"
 
 
 def load_local_pool(cloud_type="quark", include=None, exclude=None):
@@ -194,12 +193,13 @@ def fetch_api_data(cloud_type, kw="1", force_refresh=False, expire_hours=24.0,
     max_retries = 3
     retry_interval = 6
     last_exception = None
+    api_url = get_pansou_api_url()
 
     for attempt in range(1, max_retries + 1):
         try:
             log_print(f"请求 API [{cloud_type}] kw={use_kw}（第 {attempt}/{max_retries} 次）...")
             with httpx.Client(timeout=30, follow_redirects=True) as client:
-                response = client.get(API_URL, params=params, headers=headers)
+                response = client.get(api_url, params=params, headers=headers)
                 response.raise_for_status()
                 data = response.json()
             if data.get("code") not in (0, None):

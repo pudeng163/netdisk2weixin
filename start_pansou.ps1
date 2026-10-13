@@ -1,17 +1,31 @@
-$env:PORT = "8888"
-$env:CACHE_ENABLED = "true"
-$env:CACHE_PATH = "pansou\cache"
-$env:CACHE_MAX_SIZE = "100"
-$env:CACHE_TTL = "60"
-$env:ASYNC_PLUGIN_ENABLED = "true"
-$env:ASYNC_RESPONSE_TIMEOUT = "4"
-$env:ASYNC_MAX_BACKGROUND_WORKERS = "20"
-$env:ASYNC_MAX_BACKGROUND_TASKS = "100"
-$env:ASYNC_CACHE_TTL_HOURS = "1"
-$env:CHANNELS = "tgsearchers3,tgsearchers7,yunpanxunlei,QuarkFree,Quark_Movies,Baidu_netdisk,shareAliyun,ucquark,leoziyuan"
-$env:ENABLED_PLUGINS = "wanou,pansearch,quark4k,quarksoo,quarkres,dyyjpro,shandian,zhizhen,duoduo,huban,labi,muou,susu,u3c3,clmao,feikuai,haitunsou,miaoso,xiaoyu,xiaokupan,qqpd,panlian,buerchen"
+# PanSou 启动脚本（Windows 兼容入口）
+#
+# 真正的启动逻辑已迁移到 Python（core/pansou_launcher.py），实现跨平台统一：
+# 自动识别系统与 CPU 架构、从 pansou/dist/ 选对应二进制、注入插件列表、
+# 后台运行并校验插件是否真的加载成功。
+#
+# 本脚本保留是为了兼容原有的使用习惯（powershell -File start_pansou.ps1）。
+# 所有平台（含 Windows / Linux / macOS）推荐直接用：
+#     python main.py pansou start
+#     python main.py pansou status
+#     python main.py pansou stop
+#
+# 加 -Foreground 参数可前台运行（日志直接打在终端，Ctrl+C 退出）。
 
-if (!(Test-Path "pansou\cache")) { New-Item -ItemType Directory -Path "pansou\cache" | Out-Null }
+param(
+    [switch]$Foreground
+)
 
-Write-Host "PanSou starting on http://localhost:8888" -ForegroundColor Cyan
-.\pansou\pansou.exe
+$ErrorActionPreference = "Stop"
+Set-Location -Path $PSScriptRoot
+
+$python = if (Get-Command python -ErrorAction SilentlyContinue) { "python" } else { "py" }
+
+if ($Foreground) {
+    Write-Host "PanSou 前台启动（Ctrl+C 退出）..." -ForegroundColor Cyan
+    & $python main.py pansou start --foreground
+} else {
+    Write-Host "PanSou 后台启动中..." -ForegroundColor Cyan
+    & $python main.py pansou start
+    exit $LASTEXITCODE
+}

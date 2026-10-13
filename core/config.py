@@ -144,15 +144,62 @@ def resolve_path(rel_path: str) -> str:
 
 
 def get_kuake_cli(config) -> str:
-    rel = config["quark"].get("kuake_cli", "")
-    is_win = os.name == "nt"
-    default_win = "assets/bin/kuake-v1.5.0-windows-amd64.exe"
-    default_linux = "assets/bin/kuake-v1.5.0-linux-amd64"
-    if not rel or rel == default_linux or rel == default_win:
-        rel = default_win if is_win else default_linux
-    return resolve_path(rel)
+    """返回当前平台可用的 kuake CLI 绝对路径。
+
+    自动识别优先：QUARK_KUAKE_CLI 为空或 'auto' 时按当前系统/架构自动选择；
+    填了具体路径则视为显式指定，完全跳过自动识别（但会校验文件是否存在）。
+    老 .env 里残留的历史默认值会被识别并回落为自动识别。
+
+    全都拿不到时返回 ""，调用方（adapters/quark.py 的 _kuake_* 系列）
+    已有 os.path.exists 判空逻辑，会跳过相关操作。
+    """
+    from core import binresolver
+    from core.logger import log_print
+
+    res = binresolver.resolve_kuake_cli(config)
+    if res.ok:
+        if res.warning:
+            log_print(res.warning, "WARNING")
+        return res.path
+    log_print(f"kuake CLI 不可用 —— {res.reason}", "ERROR")
+    return ""
 
 
 def get_yinliu_pdf(config) -> str:
     rel = config["quark"].get("yinliu_pdf") or "assets/333333.pdf"
     return resolve_path(rel)
+
+
+# ---------------------------------------------------------------------------
+# PanSou 服务地址（供 core/cache.py 与 core/pansou_launcher.py 共用）
+# ---------------------------------------------------------------------------
+def get_pansou_host() -> str:
+    """PanSou 监听地址，默认 127.0.0.1。
+
+    用 127.0.0.1 而非 localhost，规避部分系统上 localhost 优先解析到
+    IPv6 ::1 而服务只监听 IPv4 导致的连接失败。
+    """
+    _load_env()
+    return (_get("PANSOU_HOST", "127.0.0.1") or "127.0.0.1").strip()
+
+
+def get_pansou_port() -> int:
+    _load_env()
+    return int(_get("PANSOU_PORT", 8888, int) or 8888)
+
+
+def get_pansou_api_url() -> str:
+    """搜索接口完整 URL。PANSOU_API_URL 显式设置时优先。"""
+    _load_env()
+    explicit = (_get("PANSOU_API_URL", "") or "").strip()
+    if explicit:
+        return explicit
+    return f"http://{get_pansou_host()}:{get_pansou_port()}/api/search"
+
+
+def get_pansou_health_url() -> str:
+    """健康检查接口 URL（以 /api/search 为基准推导，保证同源同端口）。"""
+    api = get_pansou_api_url()
+    if api.endswith("/api/search"):
+        return api[: -len("/api/search")] + "/api/health"
+    return f"http://{get_pansou_host()}:{get_pansou_port()}/api/health"

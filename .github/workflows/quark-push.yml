@@ -73,6 +73,10 @@ jobs:
           python -c "import sys; sys.path.insert(0,'.'); import main; print('main import OK')"
           python -c "import sys; sys.path.insert(0,'.'); from core import cache; items = cache.load_local_pool('quark') or []; print(f'资源池载入 {len(items)} 条')"
 
+      - name: Diagnose (平台 → 二进制自动识别)
+        shell: bash
+        run: python main.py diagnose || true
+
       - name: Push resources
         shell: bash
         env:

@@ -47,24 +47,49 @@ pip install -r requirements.txt
 
 ### 1.1 PanSou 自建后端（重要！）
 
-PanSou 是搜索源，**必须在跑项目前启动**。已编译好的可执行文件在 `pansou/pansou.exe`（Windows）。
+PanSou 是搜索源，**必须在跑项目前启动**。程序会自动识别当前系统与 CPU 架构，
+从 `pansou/dist/` 里挑出对应的二进制（Windows / Linux x64 / Linux arm64 /
+macOS x64 / macOS arm64 / Android arm64 全平台覆盖）。
 
-```powershell
-# Windows 启动（在项目根目录执行）
-powershell -ExecutionPolicy Bypass -File .\start_pansou.ps1
+```bash
+# 启动（自动选二进制、注入插件列表、后台运行）
+python main.py pansou start
 
-# 看到 "PanSou starting on http://localhost:8888" 就启动成功了
-# 打开浏览器访问 http://localhost:8888/api/health 返回 {"status":"ok"} 即正常
+# 查看状态（会显示插件数，必须 > 0 才有搜索能力）
+python main.py pansou status
+
+# 停止
+python main.py pansou stop
+```
+
+首次启动建议先跑一次环境诊断，它会打印「当前平台 → 选中哪个二进制 →
+架构是否匹配 → 能否执行 → 服务与插件状态」：
+
+```bash
+python main.py diagnose
 ```
 
 **每次电脑开机后需要手动启动一次**（后台长驻进程）。如果没启动，批量转存模式搜不到任何资源。
 
-**重新编译（仅更新 PanSou 源码时需要）：**
+> **常见坑**：PanSou 没拿到 `ENABLED_PLUGINS` 时会打印
+> 「插件列表为空，未加载任何插件」，此时 `/api/health` 依然返回 200，
+> 但搜索永远返回 0 条。启动器会主动校验插件数，遇到这种情况直接报错拦截，
+> 不会让你在「服务明明起来了却搜不到东西」上浪费时间。
+>
+> 插件列表默认从 `pansou/docker-compose.yml` 读取，可在 `.env` 用
+> `PANSOU_ENABLED_PLUGINS` 覆盖。
+
+**Windows 用户也可以继续用原有脚本**（内部已改为调用 Python 启动器）：
 ```powershell
-# Go 代理换国内七牛云，快很多
-$env:GOPROXY = "https://goproxy.cn,direct"
-cd pansou
-go build -ldflags="-s -w" -o pansou.exe .
+powershell -ExecutionPolicy Bypass -File .\start_pansou.ps1
+```
+
+**修改端口**只需在 `.env` 里改 `PANSOU_PORT`，Python 侧与启动器会自动跟随，
+不需要改任何代码。
+
+**重新编译（仅更新 PanSou 源码时需要）：**
+```bash
+bash pansou/build_pansou.sh    # 交叉编译全平台，产物在 pansou/dist/
 ```
 
 ---
@@ -169,14 +194,24 @@ FEISHU_TABLE_ID=            # 多维表格 URL 里 ?table= 后面那串
 
 ### 2.6 kuake CLI（夸克网盘命令行工具）
 
-项目自带两个版本，**自动按操作系统选择**，无需配置：
+项目自带多平台版本，**按当前系统与 CPU 架构自动选择**，无需配置：
 
-| 系统 | 自动使用路径 |
+| 系统 / 架构 | 自动使用路径 |
 |---|---|
-| Windows | `assets/bin/kuake-v1.5.0-windows-amd64.exe` |
-| Linux | `assets/bin/kuake-v1.5.0-linux-amd64` |
+| Windows x64 | `assets/bin/kuake-v1.5.0-windows-amd64.exe` |
+| Linux x64 | `assets/bin/kuake-v1.5.0-linux-amd64` |
+| Linux arm64 | `assets/bin/kuake-v1.5.0-linux-arm64` |
+| macOS x64 | `assets/bin/kuake-v1.5.0-darwin-amd64` |
+| macOS arm64（M 系列） | 自动回退 `darwin-amd64`，依赖 Rosetta 2 |
 
-如果要换自定义版本，在 `.env` 填 `QUARK_KUAKE_CLI=你的路径` 即可。
+选择逻辑不只看操作系统，还会读取二进制的文件头校验真实架构 —— 防止在
+Linux ARM 上误选 x86-64 的 ELF 后报出难以排查的 `Exec format error`。
+
+要换自定义版本，在 `.env` 填 `QUARK_KUAKE_CLI=你的路径` 即可（填了就不再自动识别）。
+用 `python main.py diagnose` 可以看到实际选中的是哪个文件。
+
+> macOS ARM 没有 kuake 原生版，程序会回退到 x86-64 版本并要求系统装有 Rosetta 2。
+> 未安装时会明确提示执行 `softwareupdate --install-rosetta`。
 
 **kuake CLI 用途：** 上传引流 PDF 到网盘（比 API 上传文件快，且不依赖浏览器登录态）。
 
@@ -184,7 +219,10 @@ FEISHU_TABLE_ID=            # 多维表格 URL 里 ?table= 后面那串
 可以直接测试是否生效：
 
 ```bash
+# Windows
 .\assets\bin\kuake-v1.5.0-windows-amd64.exe user
+# Linux / macOS
+./assets/bin/kuake-v1.5.0-linux-amd64 user
 ```
 
 返回 `success: true` 就是通的。
@@ -382,7 +420,7 @@ PanSou 请求失败时自动重试：
 netdisk2weixin/
 ├── main.py              # 统一入口
 ├── SKILL.md             # AI 使用指南（Trae 自动加载）
-├── start_pansou.ps1     # PanSou 自建后端启动脚本（Windows）
+├── start_pansou.ps1     # PanSou 启动脚本（Windows 兼容入口，内部调用 Python 启动器）
 ├── README.md            # 本文件
 ├── .env                 # 唯一配置文件（已 gitignore，含 Cookie）
 ├── .env.example         # 配置样例
@@ -401,19 +439,30 @@ netdisk2weixin/
 │   └── templates/       # 前端页面
 ├── assets/
 │   ├── 99999.pdf        # 夸克引流文件（自动上传到每个分享文件夹）
-│   └── bin/             # kuake CLI
+│   └── bin/             # kuake CLI（多平台，自动识别）
 │       ├── kuake-v1.5.0-windows-amd64.exe
-│       └── kuake-v1.5.0-linux-amd64
+│       ├── kuake-v1.5.0-linux-amd64
+│       ├── kuake-v1.5.0-linux-arm64
+│       └── kuake-v1.5.0-darwin-amd64
 ├── pansou/              # PanSou 自建后端（搜索源）
-│   ├── pansou.exe       # 已编译好的 Windows 可执行文件
-│   ├── start.ps1        # PanSou 自带启动脚本（可忽略，用根目录的 start_pansou.ps1）
+│   ├── dist/            # 多平台二进制（自动识别，只认这里）
+│   │   ├── pansou-windows-amd64.exe
+│   │   ├── pansou-windows-arm64.exe
+│   │   ├── pansou-linux-amd64
+│   │   ├── pansou-linux-arm64
+│   │   ├── pansou-darwin-amd64
+│   │   ├── pansou-darwin-arm64
+│   │   └── pansou-android-arm64
+│   ├── pansou / pansou.exe  # 历史遗留副本（build 脚本生成，选择器不使用）
+│   ├── build_pansou.sh  # 交叉编译脚本（一次产出 dist/ 全平台）
 │   ├── cache/           # PanSou 运行时缓存（自动生成）
 │   ├── go.mod / go.sum  # Go 模块依赖
 │   └── ...              # PanSou 源码
 └── data/                # 运行时数据（自动生成）
     ├── cache/           # API 缓存
-    ├── logs/            # 运行日志
-    └── share/           # 分享链接历史记录
+    ├── logs/            # 运行日志（含 pansou.log）
+    ├── share/           # 分享链接历史记录
+    └── pansou.pid       # PanSou 进程号（供 stop 使用）
 ```
 
 ---
@@ -453,26 +502,37 @@ KUAKE_COOKIE=你的完整cookie字符串
 重试机制会自动跑 3 次每次等 6 秒。全部失败后会回退到缓存（如果有）。如果是 PanSou 自建后端返回的 400，多半是插件源临时抽风，换个关键词或等几分钟再试。
 
 **Q：搜不到任何资源 / 返回空？**
-先确认 PanSou 自建后端是否在跑：
-```powershell
-curl http://localhost:8888/api/health
+先跑诊断，它会一次性告诉你二进制、服务、插件是否都正常：
+```bash
+python main.py diagnose
 ```
-返回 `{"status":"ok"}` 才正常。如果没启动，执行：
-```powershell
-powershell -ExecutionPolicy Bypass -File .\start_pansou.ps1
+重点看 **插件数**。如果服务在跑但插件数为 0，说明 `ENABLED_PLUGINS` 没传进去，
+搜索会永远返回 0 条 —— 这是最容易踩的坑。正常启动一份带插件的实例：
+```bash
+python main.py pansou start
+python main.py pansou status     # 确认「插件数」是个正数
 ```
 **每次电脑开机后需要手动启动一次**（后台长驻进程）。没启动的话批量转存模式必然搜不到任何东西。
 
 **Q：PanSou 启动报端口占用 / address already in use？**
 默认端口 8888 被占用了。两种解决方式：
-1. 关掉占用 8888 端口的进程：`netstat -ano | findstr :8888` → 拿到 PID → `taskkill /PID 进程号 /F`
-2. 改端口：编辑 `start_pansou.ps1` 里的 `$env:PORT = "8888"` 换成别的（比如 8889），同时改 `core/cache.py` 里的 `API_URL = "http://localhost:8889/api/search"`
+1. 关掉占用端口的进程。Windows：`netstat -ano | findstr :8888` → 拿到 PID → `taskkill /PID 进程号 /F`；Linux/macOS：`lsof -i :8888` 或 `fuser -k 8888/tcp`
+2. 改端口：在 `.env` 里写 `PANSOU_PORT=8889` 即可，**不需要改任何代码**，
+   搜索地址与启动器会自动跟随。
+
+**Q：启动时报 `Exec format error`？**
+选中的二进制与当前平台架构不匹配。跑 `python main.py diagnose`，
+它会打印每个候选文件的真实架构。常见于：手动在 `.env` 指定了
+`QUARK_KUAKE_CLI` 却填了别的平台的版本，或 `assets/bin/`、
+`pansou/dist/` 里的文件被替换成了错误架构的构建。
 
 **Q：`start_pansou.ps1` 启动后一闪而过？**
-在 PowerShell 里直接执行看完整错误信息，常见原因：
-- `pansou/pansou.exe` 不存在 → 需要先编译或确保文件没被杀毒软件隔离
-- 路径问题 → 必须从项目根目录（`start_pansou.ps1` 所在目录）执行，不要在其他目录用绝对路径调用
-- Go 版本不够 → 仅编译时需要 Go 1.21+，运行已编译好的 exe 不需要 Go
+在 PowerShell 里直接执行看完整错误信息，或改用
+`python main.py pansou start` 获取更清晰的错误提示（会打印日志末尾若干行）。
+常见原因：
+- 对应的 `pansou/dist/pansou-<os>-<arch>` 不存在 → 跑 `bash pansou/build_pansou.sh` 重新编译
+- 端口被占用 → 见上一条
+- Go 版本不够 → 仅编译时需要 Go 1.21+，运行已编译好的二进制不需要 Go
 
 **Q：PanSou 搜不到某个特定关键词？**
 PanSou 有 22 个插件源 + 9 个 TG 频道，不同插件覆盖不同资源类型。多换几个关键词试试，或者用 `--include` 本地过滤把 PanSou 返回的结果再精准筛选一遍。
@@ -480,11 +540,19 @@ PanSou 有 22 个插件源 + 9 个 TG 频道，不同插件覆盖不同资源类
 **Q：怎么找夸克文件夹的 fid？**
 浏览器打开夸克网盘，进入目标文件夹，URL 里会有 `fid=xxxxxx` 之类的参数，或者用 kuake CLI：
 ```bash
+# Windows
 .\assets\bin\kuake-v1.5.0-windows-amd64.exe list /
+# Linux / macOS
+./assets/bin/kuake-v1.5.0-linux-amd64 list /
 ```
 
 **Q：kuake CLI 版本想换？**
-替换 `assets/bin/` 下对应平台的二进制文件名（保持 `kuake-v1.5.0-windows-amd64.exe` / `kuake-v1.5.0-linux-amd64` 命名），或者在 `.env` 填 `QUARK_KUAKE_CLI=D:/tools/你的版本.exe` 指定自定义路径。
+把新文件放进 `assets/bin/`，然后二选一：
+1. 保持项目使用的命名规则（`kuake-v1.5.0-<os>-<arch>[.exe]`），自动识别即可生效
+2. 在 `.env` 填 `QUARK_KUAKE_CLI=D:/tools/你的版本.exe` 显式指定路径
+
+注意：显式指定时会**完全跳过**自动识别，程序只校验文件是否存在，不再校验架构。
+如果指定了与当前平台不匹配的二进制，运行时会出现 `Exec format error`。
 
 **Q：`.env` 里 QUARK_COOKIE 和 KUAKE_COOKIE 为什么要填两次？**
 两个程序读的字段名不同：Python 主流程读 `QUARK_COOKIE`，kuake CLI 读 `KUAKE_COOKIE`（这是 CLI 自身的字段约定）。两个值完全相同，是同一份 cookie 字符串。
