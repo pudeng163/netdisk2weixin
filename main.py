@@ -26,7 +26,7 @@ from core.logger import log_print
 
 
 def run_platform(platform, count, kw=None, include=None, exclude=None,
-                 force=False, preview_only=False):
+                 force=False, preview_only=False, check_links=None):
     if platform not in ADAPTERS:
         log_print(f"未知平台: {platform}", "ERROR")
         return None
@@ -42,12 +42,19 @@ def run_platform(platform, count, kw=None, include=None, exclude=None,
         extras.append("强制刷新")
     if preview_only:
         extras.append("预览模式")
+    if check_links is True:
+        extras.append("链接预检")
+    elif check_links is False:
+        extras.append("跳过预检")
     suffix = " (" + ", ".join(extras) + ")" if extras else ""
     log_print(f"开始执行平台: {platform}{suffix}")
     try:
         adapter_kwargs = dict(count=count, kw=kw, include=include,
                               exclude=exclude, force=force,
                               preview_only=preview_only)
+        # check_links 只有 quark 适配器支持预检
+        if platform == "quark":
+            adapter_kwargs["check_links"] = check_links
         result = get_adapter(platform)(**adapter_kwargs)
     except Exception as e:
         log_print(f"平台 {platform} 执行异常: {e}", "ERROR")
@@ -120,6 +127,11 @@ def main():
                         help="强制跳过缓存，重新请求在线 API")
     parser.add_argument("--preview", action="store_true", default=False,
                         help="只预览资源列表，不执行转存")
+    # 链接有效性预检（默认开启，见 .env 的 PANSOU_CHECK_ENABLED）
+    parser.add_argument("--check-links", dest="check_links", action="store_true",
+                        default=None, help="转存前强制启用 PanSou 链接有效性预检")
+    parser.add_argument("--no-check-links", dest="check_links", action="store_false",
+                        default=None, help="转存前跳过链接有效性预检")
     parser.add_argument("--port", type=int, default=5003, help="Web 界面端口")
     parser.add_argument("--text", type=str, default=None,
                         help="直接传入文本，自动识别网盘链接→转存→替换")
@@ -186,7 +198,8 @@ def main():
     for p in platforms:
         run_platform(p, args.count, kw=args.kw, include=args.include,
                      exclude=args.exclude, force=args.force,
-                     preview_only=args.preview)
+                     preview_only=args.preview,
+                     check_links=args.check_links)
 
     log_print("全部任务完成")
     return 0

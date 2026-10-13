@@ -73,6 +73,10 @@ jobs:
           python -c "import sys; sys.path.insert(0,'.'); import main; print('main import OK')"
           python -c "import sys; sys.path.insert(0,'.'); from core import cache; items = cache.load_local_pool('quark') or []; print(f'资源池载入 {len(items)} 条')"
 
+      - name: Unit tests
+        shell: bash
+        run: python -m pytest tests/ -q
+
       - name: Diagnose (平台 → 二进制自动识别)
         shell: bash
         run: python main.py diagnose || true
@@ -83,4 +87,5 @@ jobs:
           COUNT: ${{ github.event.inputs.count || '6' }}
           EXCLUDE: ${{ github.event.inputs.exclude || '短剧' }}
         run: |
+          # PanSou 未启动时预检自动 fail-open，不影响推送
           python main.py quark --count "$COUNT" --exclude $EXCLUDE

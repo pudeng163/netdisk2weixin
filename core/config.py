@@ -203,3 +203,49 @@ def get_pansou_health_url() -> str:
     if api.endswith("/api/search"):
         return api[: -len("/api/search")] + "/api/health"
     return f"http://{get_pansou_host()}:{get_pansou_port()}/api/health"
+
+
+def get_pansou_check_url() -> str:
+    """链接有效性检测接口 URL（POST /api/check/links）。"""
+    api = get_pansou_api_url()
+    if api.endswith("/api/search"):
+        return api[: -len("/api/search")] + "/api/check/links"
+    return f"http://{get_pansou_host()}:{get_pansou_port()}/api/check/links"
+
+
+# ---------------------------------------------------------------------------
+# 转存前链接有效性预检
+# ---------------------------------------------------------------------------
+def is_check_links_enabled() -> bool:
+    """转存前是否用 PanSou 预检链接有效性。默认开启。
+
+    .env 设 PANSOU_CHECK_ENABLED=false 可全局关闭。
+    """
+    _load_env()
+    return bool(_get("PANSOU_CHECK_ENABLED", True, bool))
+
+
+def get_check_timeout() -> float:
+    """单次检测请求超时（秒）。默认 30。
+
+    检测走的是网盘上游接口，一批多条时耗时可能到十几秒，超时别设太短。
+    """
+    _load_env()
+    try:
+        v = float(_get("PANSOU_CHECK_TIMEOUT", 30) or 30)
+    except (TypeError, ValueError):
+        v = 30.0
+    return v if v > 0 else 30.0
+
+
+def get_check_batch_size() -> int:
+    """单次检测请求最多带多少条链接。默认 50。
+
+    PanSou 侧有 maxCheckItems 上限，超了会被拒；这里主动分批更稳妥。
+    """
+    _load_env()
+    try:
+        v = int(_get("PANSOU_CHECK_BATCH", 50) or 50)
+    except (TypeError, ValueError):
+        v = 50
+    return v if v > 0 else 50
