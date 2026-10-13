@@ -28,6 +28,30 @@ from core.notifier import send_wechat_notification
 # 历史推送记录文件（用于去重）
 SHARE_TOTAL_FILE = str(SHARE_DIR / "share_url_total.txt")
 
+# 顺序推送游标文件（记录上次推到资源池的第几条）
+CURSOR_FILE = str(SHARE_DIR / "push_cursor.txt")
+
+
+def _load_cursor() -> int:
+    """读取上次顺序推送的游标位置（0-based）。游标文件不存在返回 0。"""
+    try:
+        if os.path.exists(CURSOR_FILE):
+            with open(CURSOR_FILE, "r", encoding="utf-8") as f:
+                return max(0, int(f.read().strip() or "0"))
+    except Exception:
+        pass
+    return 0
+
+
+def _save_cursor(pos: int):
+    """保存游标位置（0-based）。"""
+    os.makedirs(os.path.dirname(CURSOR_FILE), exist_ok=True)
+    try:
+        with open(CURSOR_FILE, "w", encoding="utf-8") as f:
+            f.write(str(max(0, pos)))
+    except Exception as e:
+        log_print(f"写入游标失败: {e}", "WARNING")
+
 # 需要保留的全局（供登录等使用）
 _quark_cookies_env = ""
 
@@ -751,7 +775,24 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
         log_print(f"链接数量不足，调整选取数量为 {len(quark_data)}", "WARNING")
         count = len(quark_data)
 
-    selected = random.sample(quark_data, count)
+    # ── 顺序游标推进（替代 random.sample）─────────────────────────────
+    cursor = _load_cursor()
+    total = len(quark_data)
+
+    if cursor >= total:
+        log_print(f"游标 {cursor} 超出可用范围（共 {total} 条），重置为 0", "INFO")
+        cursor = 0
+
+    log_print(f"顺序推送：游标从第 {cursor + 1} 条开始，取 {count} 条（池内共 {total} 条）", "INFO")
+
+    selected = []
+    for i in range(count):
+        idx = (cursor + i) % total
+        selected.append(quark_data[idx])
+
+    next_cursor = (cursor + count) % total
+    _save_cursor(next_cursor)
+    log_print(f"游标已更新：{cursor} → {next_cursor}（下次从第 {next_cursor + 1} 条开始）", "INFO")
 
     if preview_only:
         items = [{"index": i + 1, "note": it.get("note", "无标题"),
@@ -762,9 +803,14 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
                 "share_success_count": 0, "share_results": []}
 
     save_results = []
+    os.makedirs(SHARE_DIR, exist_ok=True)
     for index, item in enumerate(selected):
         url = item["url"]
         note = item.get("note", "")
+
+        with open(SHARE_TOTAL_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{note}  |  {url}  |  PICKED\n")
+
         try:
             result = await manager.run(url.strip(), folder_fid)
             if result is None:
@@ -836,10 +882,8 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
             if pdf_path and os.path.exists(pdf_path):
                 _upload_yinliu_pdf(kuake_cli, pdf_path, title, folder_path)
 
-            # 记录历史
-            os.makedirs(SHARE_DIR, exist_ok=True)
             with open(SHARE_TOTAL_FILE, "a", encoding="utf-8") as f:
-                f.write(f"{title}  |  {share_url}\n")
+                f.write(f"{title}  |  {share_url}  |  DONE\n")
         except Exception as e:
             share_results.append({"index": save_result.get("index",
                                                           len(share_results) + 1),

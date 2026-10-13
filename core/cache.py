@@ -21,6 +21,25 @@ from .config import (CACHE_DIR, get_resource_pool_file,
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 
+def _clean_note(note: str) -> str:
+    """清洗 note 字段：剥离内嵌 URL、电报频道、百度链接、@mentions，只留纯标题。
+
+    PanSou 插件源返回的 note 往往包含来源链接（如 "电影合集 - https://t.me/xxx | ..."）
+    或 @guomanpindao 之类的频道标识，这些需要去掉，否则推送消息里会混入别人的链接。
+    """
+    s = note or ""
+    # ① 去掉所有 URL（夸克/百度/电报/https://t.me/ 等）
+    s = re.sub(r'https?://[^\s]+', ' ', s)
+    # ② 去掉 @xxx 频道标识
+    s = re.sub(r'@[\w\u4e00-\u9fff_-]+', ' ', s)
+    # ③ 去掉电报频道链接（@xxx 已处理，再清理残留）
+    # ④ 去掉 emoji 和电报 emoji（两个字节的 U+1F000 范围）
+    s = re.sub(r'[\U00010000-\U0010ffff]', '', s)
+    # ⑤ 去掉多余空白
+    s = re.sub(r'[\s\u3000]+', ' ', s).strip()
+    return s
+
+
 def load_local_pool(cloud_type="quark", include=None, exclude=None):
     """读取本地资源池 JSON。
 
@@ -54,11 +73,12 @@ def load_local_pool(cloud_type="quark", include=None, exclude=None):
     for it in raw or []:
         if not isinstance(it, dict):
             continue
-        note = (it.get("note") or "").strip()
+        raw_note = (it.get("note") or "").strip()
         url = (it.get("url") or "").strip()
         if not url:
             continue
-        items.append({"note": note, "url": url})
+        note = _clean_note(raw_note) or raw_note[:60]
+        items.append({"note": note, "url": url, "_raw_note": raw_note})
 
     if not items:
         log_print(f"本地资源池为空（{path}），回退 API", "WARNING")
@@ -66,6 +86,9 @@ def load_local_pool(cloud_type="quark", include=None, exclude=None):
 
     items = deduplicate_data(items)
     items = local_filter(items, include, exclude)
+    # 去掉内部字段
+    for it in items:
+        it.pop("_raw_note", None)
     log_print(f"从本地资源池读取 {len(items)} 条（{path}）", "SUCCESS")
     return items
 
@@ -117,16 +140,24 @@ def is_cache_expired(cloud_type: str, expire_hours: float, kw: str = "1") -> boo
 
 
 def deduplicate_data(data):
-    """按 url 去重。"""
+    """按 url 去重 + 按 note 去重（同一个清洗后的标题只留第一条）。"""
     if not data:
         return []
-    seen = set()
+    seen_urls = set()
+    seen_notes = set()
     unique = []
     for item in data:
         url = item.get("url", "")
-        if url and url not in seen:
-            seen.add(url)
-            unique.append(item)
+        note = item.get("note", "")
+        if url and url in seen_urls:
+            continue
+        if note and note in seen_notes:
+            continue
+        if url:
+            seen_urls.add(url)
+        if note:
+            seen_notes.add(note)
+        unique.append(item)
     if len(data) > len(unique):
         log_print(f"去重完成：原始 {len(data)} 条，去重后 {len(unique)} 条", "INFO")
     return unique

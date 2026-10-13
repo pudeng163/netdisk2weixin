@@ -265,9 +265,13 @@ async def run_from_text(text, save_results=False, push_wechat=False):
             share_total_file = str(SHARE_DIR / "share_url_total.txt")
             with open(share_total_file, "a", encoding="utf-8") as f:
                 for r in results:
-                    if r["new_url"]:
-                        title = r.get("platform", "") + "_" + str(r["index"])
-                        f.write(f"{title}  |  {r['new_url']}\n")
+                    title = r.get("platform", "") + "_" + str(r["index"])
+                    orig = r.get("original_url", "")
+                    new = r.get("new_url", "")
+                    if new:
+                        f.write(f"{title}  |  {new}  |  DONE\n")
+                    elif orig:
+                        f.write(f"{title}  |  {orig}  |  PICKED\n")
         except Exception as e:
             log_print(f"写入历史失败: {e}", "WARNING")
 

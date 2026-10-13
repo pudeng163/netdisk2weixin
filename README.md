@@ -9,22 +9,40 @@
 
 ## 0. 这个工具是干嘛的
 
-从 **PanSou 自建 API** 抓取网盘分享链接 → 自动转存到**你自己的网盘** → 生成新的分享链接 → 推送到企业微信群 + 写入飞书多维表格。
+**网盘拉新统一工具**：自动转存 → 引流清理 → 上传自己的引流 PDF → 生成新分享链接 → 推送到企业微信 + 飞书多维表格。
+
 用于「网盘拉新」：别人通过你转发的链接保存文件，你获得拉新奖励。
 
-### 两种使用模式
+### 资源池来源（三层优先级）
+
+程序加载资源池按以下优先级，**命中即停**：
+
+| 优先级 | 来源 | 说明 |
+|--------|------|------|
+| **1（优先）** | **本地资源池 JSON**（`项目根/资源池.json`） | `.env` 的 `LOCAL_POOL_ENABLED=true` 时启用，**完全跳过 PanSou**。当前环境默认启用，1000+ 条资源 |
+| 2 | PanSou 自建 API（`http://localhost:8888`） | 本地池不存在/关闭时的兜底，22+ 插件源 + 9 个 TG 频道 |
+| 3 | 磁盘缓存 | API 也挂了时的最后兜底 |
+
+> **默认行为已变**：当前环境 `资源池.json` 存在 + `LOCAL_POOL_ENABLED=true`，`python main.py quark --count N` **全程不依赖 PanSou**，直接从本地 JSON 读。PanSou 只在你用 `tools/list_resources.py --refresh` 需要刷新池子时才用到。
+
+### 三种使用模式
 
 | 模式 | 命令 | 场景 |
 |------|------|------|
-| 批量转存 | `python main.py quark --count 10` | 从 PanSou 自建后端自动抓一批资源转存 |
+| 批量转存（随机） | `python main.py quark --count 6` | 从本地资源池随机抽 N 个转存 |
+| 批量转存（AI 挑） | 同上 + 在 Trae 里说"推 6 个学习类" | AI 按类型从池子挑选 |
 | 文本替换 | `python main.py --text "带链接的文本"` | 手里有现成链接文本，批量替换成自己的 |
 
-自动流程：
-1. 解析网盘链接 → 验证提取码 → 转存到自己网盘
-2. **自动清理引流文件**（命中关键词的 PDF/图片/txt 等，见下方）
-3. 夸克网盘自动上传你的引流文件 `99999.pdf` 到分享文件夹
-4. 生成新的分享链接替换原链接
-5. 结果统一推送到企业微信 + 写入飞书多维表格
+### 自动流程（不管哪种模式都一样）
+
+1. **加载资源池**（本地 JSON → PanSou → 缓存，三层优先级）
+2. **去重过滤**：抽中过的（不管转存成功与否）自动跳过，按原始 URL 精确匹配 + 标题模糊匹配
+3. 解析网盘链接 → 验证提取码 → 转存到自己网盘
+4. **自动清理引流文件**（命中关键词的 PDF/图片/txt 等）
+5. **夸克自动上传** `99999.pdf` 到每个转存的分享文件夹
+6. 生成新的分享链接
+7. 结果统一推送到企业微信 + 写入飞书多维表格
+8. **记录推送历史**：抽中即记 `PICKED`（原始 URL），分享成功追加 `DONE`（新链接）——下次绝对不会重复抽到同一条
 
 ---
 
@@ -375,7 +393,79 @@ PanSou 请求失败时自动重试：
 
 ---
 
-## 4. 夸克网盘目录结构说明
+## 3.8 本地资源池（资源池.json）
+
+### 生成 / 刷新
+
+```bash
+# 从 PanSou 自建后端拉最新全量池，同时导出 JSON
+python tools/list_resources.py --refresh --json 资源池.json
+
+# 只读本地已有池子，不请求 PanSou（快）
+python tools/list_resources.py --from-pool
+```
+
+### 关闭本地池（回退 PanSou API）
+
+`.env` 里加：`LOCAL_POOL_ENABLED=false`
+
+---
+
+## 3.9 去重机制
+
+程序自动维护 `data/share/share_url_total.txt`，**三重过滤**保证不重复推同一条：
+
+| 匹配方式 | 说明 |
+|----------|------|
+| **原始 URL 精确匹配** | 只要抽中过（不管转存成功与否），下次不会再抽到 |
+| **标题精确匹配** | 同标题不同链接也过滤 |
+| **标题模糊匹配** | 去掉空白/标点/全角后互相包含也过滤 |
+
+### 记录格式
+
+```
+# 抽中瞬间写入（保证下次被过滤）
+标题 | 原始链接 | PICKED
+
+# 分享成功后追加
+标题 | 新分享链接 | DONE
+```
+
+**关键原则**：抽中即记 PICKED，转存失败也不丢。去重过滤看的是 PICKED 里的原始 URL。
+
+---
+
+## 3.10 Skill 功能（Trae AI 自动调用）
+
+项目内置 3 个 Skill（`.trae/skills/`），在 Trae 里直接用自然语言就能触发。
+
+| Skill | 选资源的逻辑 | 一句话区别 |
+|-------|------------|-----------|
+| **push-random** | 程序真·随机抽 random.sample | 随便挑 |
+| **push-resource** | AI 按预设类型表逐条阅读 | "我要学习类" |
+| **push-from-cache** | AI 按你当场说的临时领域判断 | "选小学语文英语类的" |
+
+### 触发示例
+
+**push-random** — "随机推 6 个" / "任挑几个推"
+```bash
+python main.py quark --count 6
+python main.py quark --count 6 --exclude 短剧
+```
+
+**push-resource** — "推 8 个自我提升类的"
+
+**push-from-cache** — "按运营副业领域筛 3 个"
+
+### 成功率提示
+
+- 随机抽取成功率约 60~80%（源被封属正常损耗）
+- 要凑够 N 个成功就**重跑**（已抽中的会自动跳过）
+- 资源池 80%+ 是短剧/影视，要干货请用 push-resource
+
+---
+
+
 
 ### 4.1 转存目标
 
@@ -418,34 +508,53 @@ PanSou 请求失败时自动重试：
 
 ```
 netdisk2weixin/
-├── main.py              # 统一入口
-├── SKILL.md             # AI 使用指南（Trae 自动加载）
-├── start_pansou.ps1     # PanSou 启动脚本（Windows 兼容入口，内部调用 Python 启动器）
+├── main.py              # 统一入口（所有模式都走这里）
 ├── README.md            # 本文件
 ├── .env                 # 唯一配置文件（已 gitignore，含 Cookie）
 ├── .env.example         # 配置样例
-├── adapters/
-│   ├── baidu.py         # 百度网盘适配器
-│   └── quark.py         # 夸克网盘适配器
-├── core/
-│   ├── config.py        # 配置加载（只从 .env 读）
-│   ├── cache.py         # API 缓存 + 本地过滤 + 重试（API_URL 指向 PanSou）
-│   ├── text_replacer.py # 文本替换（网盘链接识别 + 批量转存 + 飞书写入）
-│   ├── feishu_client.py # 飞书多维表格写入客户端（追加模式，按名称去重）
-│   ├── notifier.py      # 企业微信推送
-│   └── logger.py        # 日志（Windows GBK 安全输出）
-├── web/
-│   ├── web_app.py       # Web 界面后端
-│   └── templates/       # 前端页面
-├── assets/
-│   ├── 99999.pdf        # 夸克引流文件（自动上传到每个分享文件夹）
-│   └── bin/             # kuake CLI（多平台，自动识别）
+├── 资源池.json          # 本地资源池（默认启用，1000+ 条夸克资源）
+├── start_pansou.ps1     # PanSou 启动脚本（Windows 兼容入口）
+│
+├── .trae/skills/        # Trae AI Skill（自然语言触发的推送能力）
+│   ├── push-random/     #   随机抽取 N 个
+│   ├── push-resource/   #   AI 按类型挑
+│   └── push-from-cache/ #   AI 按临时领域挑
+│
+├── adapters/            # 平台适配器
+│   ├── __init__.py      #   平台路由注册
+│   ├── baidu.py         #   百度网盘转存+分享
+│   └── quark.py         #   夸克网盘转存+分享（核心，约 900+ 行）
+│
+├── core/                # 核心服务层
+│   ├── config.py        #   .env 配置加载 + 全局默认值
+│   ├── cache.py         #   资源池加载（三层优先级：本地 JSON → PanSou → 磁盘缓存）+ 重试
+│   ├── binresolver.py   #   多平台二进制自动识别（按 os + arch 选文件）
+│   ├── logger.py        #   日志（Windows GBK 安全输出）
+│   ├── notifier.py      #   企业微信 Webhook 推送
+│   ├── feishu_client.py #   飞书多维表格写入（追加模式，按名称去重）
+│   ├── yinliu_filter.py #   引流文件自动清理（保守/激进两种模式）
+│   ├── platform_probe.py#   平台探测（Cookie 有效性、API 可达性预检）
+│   ├── text_replacer.py #   文本替换模式（识别文本里的网盘链接→转存→替换→推送）
+│   └── pansou_launcher.py # PanSou 启动/停止/状态/重启 + 自动选二进制
+│
+├── tools/               # 辅助工具（独立运行的脚本）
+│   ├── list_resources.py #  导出空关键词全量资源清单（刷新/导出 JSON）
+│   └── diagnose.py      #  环境诊断（平台→二进制→服务→插件一条龙）
+│
+├── web/                 # Web 管理界面
+│   ├── web_app.py       #   Flask 后端（平台分发：夸克/百度 + 预览 + 执行）
+│   └── templates/       #   前端页面
+│
+├── assets/              # 静态资源
+│   ├── 99999.pdf        #   夸克引流文件（自动上传到每个分享文件夹）
+│   └── bin/             #   kuake CLI（多平台，自动识别）
 │       ├── kuake-v1.5.0-windows-amd64.exe
 │       ├── kuake-v1.5.0-linux-amd64
 │       ├── kuake-v1.5.0-linux-arm64
 │       └── kuake-v1.5.0-darwin-amd64
+│
 ├── pansou/              # PanSou 自建后端（搜索源）
-│   ├── dist/            # 多平台二进制（自动识别，只认这里）
+│   ├── dist/            #   多平台二进制（启动器自动识别，只认这里）
 │   │   ├── pansou-windows-amd64.exe
 │   │   ├── pansou-windows-arm64.exe
 │   │   ├── pansou-linux-amd64
@@ -453,16 +562,19 @@ netdisk2weixin/
 │   │   ├── pansou-darwin-amd64
 │   │   ├── pansou-darwin-arm64
 │   │   └── pansou-android-arm64
-│   ├── pansou / pansou.exe  # 历史遗留副本（build 脚本生成，选择器不使用）
-│   ├── build_pansou.sh  # 交叉编译脚本（一次产出 dist/ 全平台）
-│   ├── cache/           # PanSou 运行时缓存（自动生成）
-│   ├── go.mod / go.sum  # Go 模块依赖
-│   └── ...              # PanSou 源码
-└── data/                # 运行时数据（自动生成）
-    ├── cache/           # API 缓存
-    ├── logs/            # 运行日志（含 pansou.log）
-    ├── share/           # 分享链接历史记录
-    └── pansou.pid       # PanSou 进程号（供 stop 使用）
+│   ├── build_pansou.sh  #   交叉编译脚本（一次产出 dist/ 全平台）
+│   ├── cache/           #   PanSou 运行时缓存（自动生成）
+│   ├── go.mod / go.sum  #   Go 模块依赖
+│   └── ...              #   PanSou 源码（api/ plugin/ service/ model/ util/）
+│
+├── tests/               # 单元测试
+│   └── test_platform_resolve.py
+│
+└── data/                # 运行时数据（自动生成，已 gitignore）
+    ├── cache/           #   API 缓存
+    ├── logs/            #   运行日志（含 pansou.log、yinliu_clean_日期.txt）
+    ├── share/           #   推送历史记录（share_url_total.txt，标题 | url | PICKED/DONE）
+    └── pansou.pid       #   PanSou 进程号（供 stop 使用）
 ```
 
 ---
