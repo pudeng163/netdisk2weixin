@@ -1,9 +1,17 @@
 # 网盘拉新统一转存工具
 
+> 给大家推荐一个比看抖音还能赚钱的方法，就是资源分享，首先需要注册网盘拉新平台，https://dcn8qexvg13r.feishu.cn/wiki/GCUawXLE2iW09JkJM6OcbPnqnte
+
 把原来的「百度网盘转存」和「夸克网盘转存」两个独立项目，合并为一个统一项目。
 一份配置、一个入口、统一的企业微信推送和 Web 管理界面，百度 / 夸克可分别或一起跑。
 
 搜索源采用 **PanSou 自建后端**（`http://localhost:8888`），22 个插件源 + 9 个 TG 频道，不依赖外部被封的聚合站，稳定可控。
+
+**推送效果**（企业微信实拍）：
+
+<p align="center">
+  <img src="docs/images/wechat-push-effect.jpg" alt="企业微信推送效果" width="360">
+</p>
 
 ---
 
@@ -656,6 +664,7 @@ netdisk2weixin/
 │   ├── go.mod / go.sum  #   Go 模块依赖
 │   └── ...              #   PanSou 源码（api/ plugin/ service/ model/ util/）
 │
+├── docs/images/         # README 配图（推送效果截图等）
 ├── tests/               # 单元测试
 │   ├── test_platform_resolve.py  # 平台→二进制自动识别
 │   └── test_link_check.py        # 链接预检（三态/缓存/降级/死链/游标跳过）
