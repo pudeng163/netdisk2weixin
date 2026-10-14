@@ -29,6 +29,110 @@ LINK_PATTERNS = [
 PWD_PATTERN = re.compile(r"pwd[=:：]\s*([a-zA-Z0-9]{4})")
 CODE_PATTERN = re.compile(r"(?:提取码|密码|验证码|passcode)[=:：]\s*([a-zA-Z0-9]{4})")
 
+# 链接行常见的「引导词」——剥离 URL 后如果只剩这些，说明真正的标题在上一行。
+# 例：「链接：https://...」「地址：https://...」「提取码：ab12 https://...」
+_TITLE_NOISE_RE = re.compile(
+    r"^(?:"
+    r"链接|下载链接|网盘链接|分享链接|资源链接|链\s*接|地址|下载地址|网盘地址|"
+    r"提取码|密码|验证码|passcode|pwd|口令|复制|点击|请|点此|"
+    r"link|url|链接地址|下载|下载地址"
+    r")\s*[：:，,。.、\-—|｜]?\s*$",
+    re.IGNORECASE,
+)
+
+# 标题里出现这些词，基本可判定不是标题（是引导语/表头）
+_TITLE_HINT_RE = re.compile(
+    r"(?:链接|地址|提取码|密码|复制|打开|点击|下载)", re.IGNORECASE)
+
+
+def _clean_title_line(line: str) -> str:
+    """把一行文本清洗成候选标题：去 URL、去 emoji 序列、去首尾分隔符。"""
+    if not line:
+        return ""
+    s = re.sub(r"https?://\S+", " ", line)
+    # 去掉 emoji（含变体选择符、ZWJ 组合）与常见符号前缀
+    s = re.sub(r"[\U00010000-\U0010ffff\U0001F000-\U0001FAFF\ufe0f\u200d]", "", s)
+    s = s.strip().rstrip("：:-—|｜><=*·. \t")
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _is_noise_title(s: str) -> bool:
+    """判断清洗后的字符串是否只是无意义的引导词。"""
+    if not s:
+        return True
+    if _TITLE_NOISE_RE.match(s):
+        return True
+    # 纯符号/纯数字（且很短）也认为无意义
+    if not re.search(r"[\u4e00-\u9fff a-zA-Z]", s):
+        return True
+    if len(s) <= 2 and _TITLE_HINT_RE.search(s):
+        return True
+    return False
+
+
+def _pick_display_title(origin_title: str, api_title: str, index) -> str:
+    """决定展示/写飞书用的资源名称。
+
+    **优先级：转存成功时显示的名称（分享接口返回的 title）最高**——
+    这是网盘里真实的资源名，与「转存成功」日志一致，也是用户期望看到的。
+
+    原文标题只在接口没返回 title 时作为兜底；且必须先做噪音判断
+    （历史实现直接 `origin_title or title`，origin_title 是「链接」这类
+    引导词时会把正确的 api_title 盖掉，导致飞书资源名为「链接」）。
+    """
+    api = (api_title or "").strip()
+    if api and api != "unknown":
+        return api
+    if origin_title and not _is_noise_title(origin_title):
+        return origin_title
+    return f"资源{index}"
+
+
+def extract_origin_title(text: str, span, url: str, max_lookback: int = 6) -> str:
+    """从原文本中提取链接对应的「原文标题」。
+
+    策略（两行式文案是主流，必须支持回溯）：
+      1. 先看链接所在行，剥离 URL 后若还有实质内容 → 用它
+      2. 否则**向上回溯**若干行，找到第一个像标题的行
+      3. 都找不到返回空串（调用方会回退到分享接口返回的标题）
+
+    原实现只看链接所在行，遇到「标题在上一行、链接独占一行」的常见排版时
+    会提取出「链接」二字，并因为 `origin_title or title` 的优先级把正确标题
+    覆盖掉。这里补上回溯与噪音过滤。
+    """
+    if not url or not span:
+        return ""
+    lines = text.splitlines(keepends=True)
+    # 定位链接所在行的索引
+    pos = 0
+    cur_line_idx = -1
+    for li, ln in enumerate(lines):
+        if pos <= span[0] < pos + len(ln):
+            cur_line_idx = li
+            break
+        pos += len(ln)
+    if cur_line_idx < 0:
+        return ""
+
+    # ① 链接所在行
+    cand = _clean_title_line(lines[cur_line_idx])
+    if not _is_noise_title(cand):
+        return cand
+
+    # ② 向上回溯
+    steps = 0
+    li = cur_line_idx - 1
+    while li >= 0 and steps < max_lookback:
+        cand = _clean_title_line(lines[li])
+        if not _is_noise_title(cand):
+            # 太长的行多半是段落正文而非标题，但仍可接受（截断）
+            return cand[:120]
+        li -= 1
+        steps += 1
+
+    return ""
+
 
 def extract_links(text):
     found = []
@@ -190,21 +294,9 @@ async def run_from_text(text, save_results=False, push_wechat=False):
         error_msg = None
 
         # 提取该链接在原文本中的「原文标题」：
-        # 取链接所在行的行首部分（去掉链接本身），作为对用户展示的标题，
-        # 避免推送时用的是分享接口返回的内部标题（常与原标题不符）。
-        origin_title = ""
-        try:
-            line_start = new_text.rfind("\n", 0, link["span"][0]) + 1
-            line_end = new_text.find("\n", link["span"][1])
-            if line_end < 0:
-                line_end = len(new_text)
-            raw_line = new_text[line_start:line_end]
-            origin_title = raw_line.replace(original_url, "")
-            # 去掉行尾的分隔符（：/ - / | 等）
-            origin_title = origin_title.strip().rstrip("：:-—|｜ \t")
-            origin_title = re.sub(r"\s+", " ", origin_title).strip()
-        except Exception:
-            origin_title = ""
+        # 优先用行内/上一行的文案标题，避免推送时用的是分享接口返回的内部标题。
+        # 详见 extract_origin_title 的文档（支持向上回溯 + 噪音过滤）。
+        origin_title = extract_origin_title(new_text, link["span"], original_url)
 
         try:
             log_print(f"\n--- 处理 {i+1}/{len(links)}: [{platform}] {original_url[:60]} ---")
@@ -252,6 +344,7 @@ async def run_from_text(text, save_results=False, push_wechat=False):
             "new_url": new_url,
             "title": title,
             "origin_title": origin_title,
+            "display_title": _pick_display_title(origin_title, title, i + 1),
             "size": size,
             "status": "success" if new_url else "error",
             "message": error_msg,
@@ -287,10 +380,8 @@ async def run_from_text(text, save_results=False, push_wechat=False):
             shares = []
             for r in results:
                 if r["new_url"]:
-                    # 标题优先用原文标题（与用户看到的文案一致）；
-                    # 原文标题取不到时回退到分享返回的内部标题
-                    note = (r.get("origin_title") or r.get("title")
-                            or f"资源{r.get('index','')}")
+                    # 与飞书一致：优先用转存成功时显示的资源名
+                    note = r.get("display_title") or f"资源{r.get('index','')}"
                     shares.append({
                         "note": note,
                         "share_url": r["new_url"],
@@ -326,12 +417,12 @@ async def run_from_text(text, save_results=False, push_wechat=False):
             for r in results:
                 if r["status"] == "success" and r.get("new_url"):
                     feishu_items.append({
-                        "name": (r.get("origin_title") or r.get("title")
-                                 or f"{r.get('platform','?')}_{r.get('index','?')}"),
+                        # 资源名称 = 转存成功时显示的名称（分享接口返回的 title）
+                        "name": r.get("display_title") or f"资源{r.get('index','?')}",
                         "url": r["new_url"],
                         "size": r.get("size", ""),
                         "tag": r.get("platform", ""),
-                        "search": r.get("title") or "",
+                        "search": r.get("display_title") or "",
                         "update_time": time.strftime("%Y-%m-%d"),
                     })
             if feishu_items:
