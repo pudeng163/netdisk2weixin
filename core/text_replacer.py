@@ -169,7 +169,9 @@ def extract_links(text):
 
 async def _save_and_share_quark(url, password, folder_fid, kuake_cli, pdf_path="",
                                 folder_path=""):
-    from adapters.quark import QuarkPanFileManager, _upload_yinliu_pdf
+    from adapters.quark import (QuarkPanFileManager, _upload_yinliu_pdf,
+                                clean_yinliu_after_save,
+                                _resolve_top_fids_to_paths)
     config = load_config()
     quark_cookie = config["quark"].get("cookie", "")
 
@@ -188,6 +190,34 @@ async def _save_and_share_quark(url, password, folder_fid, kuake_cli, pdf_path="
 
     file_ids = save_result["data"]["save_as"]["save_as_top_fids"]
 
+    # ── 转存后、分享前：清理别人塞在里面的引流文件 ──────────────────────
+    # 与批量模式（adapters/quark.py）保持一致的行为：把转存进来的顶层条目
+    # 展开成路径，交给 clean_yinliu_after_save 按规则删掉加群/公众号之类的
+    # 引流文件，避免自己的分享里夹带别人的引流内容。
+    cleanup_result = None
+    filter_cfg = config.get("clean_yinliu", {}) or {}
+    if filter_cfg.get("enabled"):
+        try:
+            top_paths = _resolve_top_fids_to_paths(kuake_cli, folder_fid, file_ids)
+            if top_paths:
+                log_print(f"开始清理转存内容中的引流文件（{len(top_paths)} 个顶层条目）...", "INFO")
+                # 排除我们自己的引流 PDF 名，避免刚上传的 99999.pdf 被误删
+                pdf_name = (os.path.splitext(os.path.basename(pdf_path))[0]
+                            if pdf_path else "")
+                cleanup_excludes = [pdf_name] if pdf_name else None
+                cleanup_result = clean_yinliu_after_save(
+                    kuake_cli, top_paths, filter_cfg, excludes=cleanup_excludes)
+                log_print(
+                    f"引流清理完成: 删除 {len(cleanup_result.get('deleted', []))} 个",
+                    "SUCCESS" if cleanup_result.get("deleted") else "INFO")
+            else:
+                log_print("未能解析转存条目的路径，跳过引流清理", "WARNING")
+        except Exception as e:
+            # 清理只是优化项，失败不能阻断转存/分享主流程
+            log_print(f"引流清理异常（已跳过）: {e}", "WARNING")
+    else:
+        log_print("引流清理未开启（.env 的 CLEAN_YINLIU_ENABLED），跳过", "INFO")
+
     await asyncio.sleep(random.uniform(1, 3))
 
     share_result = await manager.share_run(
@@ -204,6 +234,7 @@ async def _save_and_share_quark(url, password, folder_fid, kuake_cli, pdf_path="
         "platform": "quark",
         "save_result": save_result,
         "share_result": share_result,
+        "cleanup_result": cleanup_result,
     }
 
 
