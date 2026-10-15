@@ -2,7 +2,7 @@ name: Quark Auto Push
 
 on:
   schedule:
-    - cron: '11 0-13 * * *'
+    - cron: '11 16 * * *'
   workflow_dispatch:
     inputs:
       count:
