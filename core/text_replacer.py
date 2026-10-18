@@ -404,25 +404,16 @@ async def run_from_text(text, save_results=False, push_wechat=False):
 
     wechat_result = None
     if push_wechat and success_count > 0:
-        from core.notifier import send_wechat_notification
         import requests as _requests
         webhook_url = config.get("wechat", {}).get("webhook_url", "")
         if webhook_url:
-            shares = []
-            for r in results:
-                if r["new_url"]:
-                    # 与飞书一致：优先用转存成功时显示的资源名
-                    note = r.get("display_title") or f"资源{r.get('index','')}"
-                    shares.append({
-                        "note": note,
-                        "share_url": r["new_url"],
-                    })
-            send_wechat_notification(webhook_url, shares, kw="文本替换")
-
-            header_msg = "===== 替换后完整文本 ====="
+            # 只发一条：替换后的完整文案（不带任何标题头），供直接复制转发。
+            # 2026-10-18 应用户要求：去掉摘要卡片和「替换后完整文本」头部，
+            # 之前发两条（摘要 + 全文）看起来像重复推送。
+            full_text = new_text
             max_len = 3800
-            full_text = header_msg + "\n\n" + new_text
             chunks = [full_text[i:i + max_len] for i in range(0, len(full_text), max_len)]
+            ok_chunks = 0
             for ci, chunk in enumerate(chunks):
                 if len(chunks) > 1:
                     chunk = f"[ {ci+1}/{len(chunks)} ]\n\n" + chunk
@@ -432,10 +423,11 @@ async def run_from_text(text, save_results=False, push_wechat=False):
                         json={"msgtype": "text", "text": {"content": chunk.strip()}},
                         timeout=10,
                     )
+                    ok_chunks += 1
                     log_print(f"企业微信推送分片 {ci+1}/{len(chunks)} 成功", "SUCCESS")
                 except Exception as e:
                     log_print(f"企业微信推送分片 {ci+1} 失败: {e}", "ERROR")
-            wechat_result = {"success": True, "chunks": len(chunks)}
+            wechat_result = {"success": ok_chunks > 0, "chunks": len(chunks)}
         else:
             log_print("未配置 webhook_url，跳过企业微信推送", "WARNING")
 
