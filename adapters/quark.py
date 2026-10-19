@@ -606,6 +606,29 @@ def _kuake_delete(kuake_cli, path):
         return False
 
 
+def _kuake_rename(kuake_cli, path, new_name):
+    """重命名夸克网盘某文件/目录，返回 True 表示成功。"""
+    if not kuake_cli or not os.path.exists(kuake_cli):
+        log_print(f"kuake 可执行文件不存在，无法重命名: {kuake_cli}", "WARNING")
+        return False
+    try:
+        result = subprocess.run(
+            [kuake_cli, "rename", path, new_name], capture_output=True, timeout=30,
+            encoding="utf-8", errors="replace",
+        )
+        text = result.stdout.strip()
+        ok = result.returncode == 0 and ("success" in text.lower() or "成功" in text)
+        if not ok:
+            log_print(f"kuake rename 失败: {path} | {text[:200]}", "WARNING")
+        return ok
+    except subprocess.TimeoutExpired:
+        log_print(f"kuake rename 超时: {path}", "WARNING")
+        return False
+    except Exception as e:
+        log_print(f"kuake rename 异常: {e}", "WARNING")
+        return False
+
+
 def _resolve_top_fids_to_paths(kuake_cli, folder_fid, top_fids):
     """把转存返回的 top_fids 列表解析成对应的网盘路径。
 
@@ -708,26 +731,84 @@ def clean_yinliu_after_save(kuake_cli, top_paths, filter_cfg, excludes=None):
     Returns:
         {"deleted": [...], "total": int}
     """
-    from core.yinliu_filter import match_yinliu
+    from core.yinliu_filter import match_yinliu, rewrite_contact
 
     if not kuake_cli or not os.path.exists(kuake_cli):
         log_print("kuake CLI 不可用，跳过引流清理", "WARNING")
-        return {"deleted": [], "total": 0}
+        return {"deleted": [], "renamed": [], "total": 0}
 
     keywords = filter_cfg.get("keywords") or None
     extensions = filter_cfg.get("extensions") or None
     max_bytes = filter_cfg.get("max_small_file_bytes")
+    my_contact = filter_cfg.get("my_contact")
 
     all_excludes = list(filter_cfg.get("excludes") or [])
     if excludes:
         all_excludes.extend(excludes)
 
     if not top_paths:
-        return {"deleted": [], "total": 0}
+        return {"deleted": [], "renamed": [], "total": 0}
 
     deleted = []
+    renamed = []
     checked = 0
     records = []
+
+    def _excluded(name):
+        base = os.path.basename(name)
+        for excl in all_excludes:
+            if excl and excl in base:
+                return True
+        return False
+
+    def _handle(path, size, is_dir=False):
+        """处理单个条目。
+
+        顺序很关键：
+          ① 名字里带别人联系方式 → 改名换成自己的号，**不删**
+             （正课文件常挂「【更多好课加微信xxx】」尾巴，删了等于删课）
+          ② 其余再按关键词判引流 → 删
+        """
+        if _excluded(path):
+            records.append({"path": path, "size": size, "is_yinliu": False,
+                            "deleted": False, "reason": "", "is_dir": is_dir})
+            return
+
+        new_name = rewrite_contact(path, my_contact)
+        if new_name:
+            log_print(f"发现他人联系方式: {os.path.basename(path)}", "INFO")
+            if _kuake_rename(kuake_cli, path, new_name):
+                renamed.append(path)
+                log_print(f"已改名: {os.path.basename(path)} → {new_name}", "SUCCESS")
+                records.append({"path": path, "size": size, "is_yinliu": False,
+                                "deleted": False, "reason": f"联系方式改写为 {new_name}",
+                                "is_dir": is_dir})
+                return
+            log_print(f"改名失败，继续按引流判定: {path}", "WARNING")
+
+        is_yl, reason = match_yinliu(
+            path, size,
+            keywords=keywords or None,
+            extensions=extensions or None,
+            max_small_file_bytes=max_bytes,
+            extra_excludes=all_excludes or None,
+            aggressive_ext_check=filter_cfg.get("aggressive_ext_check", False),
+        )
+
+        if is_yl:
+            log_print(f"发现引流文件: {path} | {reason}", "INFO")
+            ok = _kuake_delete(kuake_cli, path)
+            if ok:
+                deleted.append(path)
+                log_print(f"已删除: {path}", "SUCCESS")
+            else:
+                log_print(f"删除失败: {path}", "WARNING")
+            records.append({"path": path, "size": size, "is_yinliu": True,
+                            "deleted": bool(ok), "reason": reason,
+                            "is_dir": False})
+        else:
+            records.append({"path": path, "size": size, "is_yinliu": False,
+                            "deleted": False, "reason": "", "is_dir": is_dir})
 
     for top_path in top_paths:
         info = _kuake_info(kuake_cli, top_path)
@@ -735,29 +816,7 @@ def clean_yinliu_after_save(kuake_cli, top_paths, filter_cfg, excludes=None):
 
         if not is_dir and info:
             checked += 1
-            size = info.get("size", 0)
-            is_yl, reason = match_yinliu(
-                top_path, size,
-                keywords=keywords or None,
-                extensions=extensions or None,
-                max_small_file_bytes=max_bytes,
-                extra_excludes=all_excludes or None,
-                aggressive_ext_check=filter_cfg.get("aggressive_ext_check", False),
-            )
-            if is_yl:
-                log_print(f"发现引流文件: {top_path} | {reason}", "INFO")
-                ok = _kuake_delete(kuake_cli, top_path)
-                if ok:
-                    deleted.append(top_path)
-                    log_print(f"已删除: {top_path}", "SUCCESS")
-                else:
-                    log_print(f"删除失败: {top_path}", "WARNING")
-                records.append({"path": top_path, "size": size, "is_yinliu": True,
-                                "deleted": bool(ok), "reason": reason,
-                                "is_dir": False})
-            else:
-                records.append({"path": top_path, "size": size, "is_yinliu": False,
-                                "deleted": False, "reason": "", "is_dir": False})
+            _handle(top_path, info.get("size", 0), is_dir=False)
             continue
 
         queue = [top_path]
@@ -768,37 +827,17 @@ def clean_yinliu_after_save(kuake_cli, top_paths, filter_cfg, excludes=None):
                 checked += 1
                 path = entry.get("path", "")
                 size = entry.get("size", 0)
+                entry_is_dir = bool(entry.get("dir"))
+                _handle(path, size, is_dir=entry_is_dir)
+                # 改名/未删的目录继续下钻；已删的不用再进
+                if entry_is_dir and path not in deleted:
+                    queue.append(path)
 
-                is_yl, reason = match_yinliu(
-                    path, size,
-                    keywords=keywords or None,
-                    extensions=extensions or None,
-                    max_small_file_bytes=max_bytes,
-                    extra_excludes=all_excludes or None,
-                    aggressive_ext_check=filter_cfg.get("aggressive_ext_check", False),
-                )
-
-                if is_yl:
-                    log_print(f"发现引流文件: {path} | {reason}", "INFO")
-                    ok = _kuake_delete(kuake_cli, path)
-                    if ok:
-                        deleted.append(path)
-                        log_print(f"已删除: {path}", "SUCCESS")
-                    else:
-                        log_print(f"删除失败: {path}", "WARNING")
-                    records.append({"path": path, "size": size, "is_yinliu": True,
-                                    "deleted": bool(ok), "reason": reason,
-                                    "is_dir": False})
-                else:
-                    records.append({"path": path, "size": size, "is_yinliu": False,
-                                    "deleted": False, "reason": "",
-                                    "is_dir": bool(entry.get("dir"))})
-                    if entry.get("dir"):
-                        queue.append(path)
-
-    log_print(f"引流清理完成：检查 {checked} 个，删除 {len(deleted)} 个", "INFO")
-    _write_clean_record(records, {"checked": checked, "deleted": len(deleted)})
-    return {"deleted": deleted, "total": checked}
+    log_print(f"引流清理完成：检查 {checked} 个，删除 {len(deleted)} 个，"
+              f"改写联系方式 {len(renamed)} 个", "INFO")
+    _write_clean_record(records, {"checked": checked, "deleted": len(deleted),
+                                  "renamed": len(renamed)})
+    return {"deleted": deleted, "renamed": renamed, "total": checked}
 
 
 # ---------------------------------------------------------------------------

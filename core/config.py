@@ -83,6 +83,8 @@ def load_config():
     clean_yinliu_max_mb = _get("CLEAN_YINLIU_MAX_MB", 5, float)
     clean_yinliu_aggressive = _get("CLEAN_YINLIU_AGGRESSIVE", False,
                                    lambda v: v.lower() in ("1", "true", "yes"))
+    # 文件名里出现他人微信号/QQ号时，替换成自己的号（默认 kds3566）
+    clean_yinliu_my_contact = _get("CLEAN_YINLIU_MY_CONTACT", "kds3566")
 
     baidu_cookie = _get("BAIDU_COOKIE", "")
     baidu_count = _get("BAIDU_COUNT", None, int)
@@ -107,6 +109,7 @@ def load_config():
             "excludes": clean_yinliu_excludes,
             "max_small_file_bytes": int(clean_yinliu_max_mb * 1024 * 1024),
             "aggressive_ext_check": clean_yinliu_aggressive,
+            "my_contact": clean_yinliu_my_contact,
         },
         "wechat": {
             "webhook_url": webhook_url,

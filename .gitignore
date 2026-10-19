@@ -1,6 +1,7 @@
 # 配置与敏感信息
 config.yaml
 .env
+.env.bak_*
 config/
 *.json
 # 例外：本地资源池（数据来源，需入库共享）

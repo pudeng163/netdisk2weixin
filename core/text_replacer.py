@@ -239,55 +239,51 @@ async def _save_and_share_quark(url, password, folder_fid, kuake_cli, pdf_path="
 
 
 def _save_and_share_baidu(url, password, target_folder):
-    from adapters.baidu import Network, normalize_link, parse_url_and_code
+    """百度网盘：转存 + 分享（文本替换路径）。
 
-    config = load_config()
-    baidu = config["baidu"]
-    cookie = baidu.get("cookie", "")
-    if not cookie:
-        raise RuntimeError("百度未配置 Cookie")
+    直接复用 adapters.baidu.run() 的单资源模式，而不是另写一套 HTTP 调用。
+    早期版本这里手写了一套 network.transfer()/get_transfer_params()，
+    但 adapters.baidu.Network 里并没有这两个方法（只有 transfer_file），
+    于是每次都会抛 "too many values to unpack / AttributeError"，
+    百度链路实际上从未跑通过。复用 run() 可以保证两条路径行为一致。
+    """
+    from adapters import baidu as baidu_adapter
 
-    network = Network()
-    network.headers["Cookie"] = cookie
+    # run() 内部会自己读 config 里的 cookie / 目录，这里只需要把单个资源塞进去。
+    # selected_items 走的是"已有资源直接处理"分支，跳过缓存与随机抽样。
+    item = {
+        "url": url,
+        "password": password or "",
+        "note": url,
+    }
 
-    bdstoken = network.get_bdstoken()
-    if isinstance(bdstoken, int):
-        raise RuntimeError(f"获取 bdstoken 失败: {bdstoken}")
-    network.bdstoken = bdstoken
+    cfg = load_config().get("baidu", {})
+    result = baidu_adapter.run(
+        count=1,
+        selected_items=[item],
+        preview_only=False,
+        platform_cfg=cfg,
+        notify=False,   # 文本替换路径统一由外层推一条，避免重复推送
+    )
 
-    result = network.get_dir_list(f"/{target_folder}")
-    if isinstance(result, int):
-        rc = network.create_dir(target_folder)
-        if rc != 0:
-            raise RuntimeError(f"创建目录失败: {rc}")
+    if not result or result.get("code") != 200:
+        raise RuntimeError((result or {}).get("message", "百度转存失败"))
 
-    link_text = f"{url} {password}" if password else url
-    normalized = normalize_link(link_text)
-    parsed_url, code = parse_url_and_code(normalized)
-    if not parsed_url:
-        raise RuntimeError(f"无法解析百度链接: {url}")
+    share_results = result.get("share_results") or []
+    if not share_results:
+        raise RuntimeError("百度转存后未拿到分享链接（可能被限流或资源已失效）")
 
-    if code:
-        bdclnd = network.verify_pass_code(parsed_url, code)
-        if isinstance(bdclnd, int):
-            raise RuntimeError(f"验证码校验失败: {bdclnd}")
-
-    fs_ids, filenames = network.get_transfer_params(parsed_url)
-    if not fs_ids:
-        raise RuntimeError("获取转存参数失败")
-
-    save_result = network.transfer(fs_ids, filenames, f"/{target_folder}")
-    if save_result.get("errno", 0) != 0:
-        raise RuntimeError(f"转存失败: {save_result}")
-
-    fs_id = fs_ids[0] if isinstance(fs_ids, list) else fs_ids
-    random_code = "".join(random.choices("abcdefghijklmnopqrstuvwxyz1234567890", k=4))
-    share_result = network.create_share(fs_id, expiry=4, password=random_code)
-
+    first = share_results[0]
+    # run() 的 note 优先用调用方传入的（文本替换路径传的是 URL，没有意义），
+    # 回退到真正转存下来的文件名。
+    api_title = first.get("file_name") or ""
     return {
         "platform": "baidu",
-        "save_result": save_result,
-        "share_result": share_result,
+        "share_result": {
+            "url": first.get("share_url", ""),
+            "title": api_title,
+            "size": first.get("size", ""),
+        },
     }
 
 
@@ -364,8 +360,43 @@ async def run_from_text(text, save_results=False, push_wechat=False):
                 search_start = max(0, links[i]["span"][0] + offset - 20)
             idx = new_text.find(original_url, search_start)
             if idx >= 0:
-                new_text = new_text[:idx] + new_url + new_text[idx + len(original_url):]
+                tail_start = idx + len(original_url)
+                new_text = new_text[:idx] + new_url + new_text[tail_start:]
                 offset += len(new_url) - len(original_url)
+                delta = len(new_url) - len(original_url)
+
+                # 百度链接的提取码：新链接自带 ?pwd=xxxx 时，原文旁边的
+                # 「提取码: 6666」还是旧分享的密码，必须一起改掉，
+                # 否则用户拿着新链接 + 旧密码必然打不开。
+                pwd_m = re.search(r"[?&]pwd=([A-Za-z0-9]{4})", new_url)
+                if pwd_m:
+                    new_pwd = pwd_m.group(1)
+                    after = new_text[tail_start + delta:tail_start + delta + 40]
+                    code_m = CODE_PATTERN.search(after)
+                    if code_m and code_m.group(1) != new_pwd:
+                        a, b = (tail_start + delta + code_m.start(1),
+                                tail_start + delta + code_m.end(1))
+                        new_text = new_text[:a] + new_pwd + new_text[b:]
+                        offset += len(new_pwd) - len(code_m.group(1))
+        else:
+            # 转存失败：把原链接替换成「转存失败」字样。
+            # 绝不能保留别人的原链接 —— 那样发出去等于替原作者导流，
+            # 而且用户根本看不出哪条没成功。
+            idx = new_text.find(original_url)
+            if idx >= 0:
+                tail_end = idx + len(original_url)
+                # 连带删掉紧随其后的「提取码: xxxx」，否则会留下悬空的提取码
+                after = new_text[tail_end:tail_end + 40]
+                code_m = CODE_PATTERN.search(after)
+                if code_m:
+                    tail_end += code_m.end()
+                    # 吞掉提取码后面多余的空白
+                    while tail_end < len(new_text) and new_text[tail_end] in " \t":
+                        tail_end += 1
+                replaced_len = tail_end - idx
+                new_text = new_text[:idx] + "转存失败" + new_text[tail_end:]
+                offset += len("转存失败") - replaced_len
+                log_print(f"链接已替换为「转存失败」: {original_url[:50]}", "WARNING")
 
         results.append({
             "index": i + 1,

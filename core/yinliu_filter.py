@@ -56,10 +56,85 @@ DEFAULT_EXTENSIONS = [
 
 DEFAULT_MAX_SMALL_FILE_BYTES = 5 * 1024 * 1024
 
+# ── 自己的联系方式（2026-10-18 追加）──────────────────────────────
+# 场景：转存来的资料，文件名末尾常挂原作者的引流尾巴，例如
+#     43 《风筝》【更多好课加微信z13492263】.pdf
+# 这些是正课，不能删。处理方式是「把别人的号改成自己的号」：
+#     43 《风筝》【更多好课加微信kds3566】.pdf
+# 既保住内容，又把流量导到自己这里。
+DEFAULT_MY_CONTACT = "kds3566"
+
+# 匹配「微信/vx/QQ + 账号」。(?:号|群)? 用于吃掉「微信号」「QQ群」里的字；
+# 账号部分限定为字母数字串，因此「微信公众号」「微信支付」这类中文词组不会误匹配。
+_CONTACT_RE = re.compile(
+    r"((?:微信|wechat|vxin|v信|vx|wx|扣扣|qq)\s*(?:号|群)?\s*[:：=]?\s*)"
+    r"([A-Za-z0-9][A-Za-z0-9_-]{4,19})",
+    re.IGNORECASE)
+
+# ── 广告尾巴剥离 ────────────────────────────────────────────────
+# 事故背景：转存「邵鑫合集」时一次误删 173 个正课文件，原因就是整个文件名
+# 直接做关键词匹配，命中「微信」后把整节课删掉了。
+# 新逻辑：先摘掉被【】[]（）包裹的片段，只在剥离后的主体上判定引流。
+# 只认【】[]（）() 四类包裹符 —— 书名号《》是正课标题常用符号，
+# 若当包裹符会把《风筝》这类标题本身摘掉。
+_AD_WRAPPER_RE = re.compile(r"[【\[（(]([^【\[\]（）()]{1,60})[】\]）)]")
+
+# 包裹片段里出现这些词 → 认为该片段是广告尾巴
+_AD_WRAPPER_HINT_RE = re.compile(
+    r"(微信|wechat|vx|v信|vxin|qq|加群|群号|二维码|扫码|关注|公众号|"
+    r"领取|福利|免费|更多好课|更多资源|更多资料|加好友|添加好友|联系|咨询|"
+    r"私信|密码|进群|入群|客服|小编|站长|资料|资源)",
+    re.IGNORECASE)
+
 
 def _compile_patterns(keywords):
     escaped = [re.escape(k) for k in keywords]
     return re.compile("|".join(escaped), re.IGNORECASE)
+
+
+def strip_ad_wrappers(name):
+    """剥离文件名里被【】[]（）包裹的片段。
+
+    Returns:
+        (主体名, 被剥离的片段列表)
+    """
+    if not name:
+        return "", []
+    segs = _AD_WRAPPER_RE.findall(name)
+    main = _AD_WRAPPER_RE.sub("", name)
+    return main, segs
+
+
+def rewrite_contact(name, my_contact=None):
+    """把文件名里的他人联系方式替换成自己的号。
+
+    只改「微信/vx/QQ 后面那个账号串」，其余文字原样保留，
+    因此正课标题（如「43 《风筝》」）不会被动到。
+
+    Args:
+        name: 文件名或路径
+        my_contact: 自己的号，None 则用 DEFAULT_MY_CONTACT
+
+    Returns:
+        改写后的 basename；无需改写（没匹配到 / 已经是自己的号）则返回 None
+    """
+    if not name:
+        return None
+    my = (my_contact or DEFAULT_MY_CONTACT or "").strip()
+    if not my:
+        return None
+    base = os.path.basename(name)
+
+    def _sub(m):
+        prefix, account = m.group(1), m.group(2)
+        if account == my:
+            return m.group(0)
+        return prefix + my
+
+    new_base, n = _CONTACT_RE.subn(_sub, base)
+    if n == 0 or new_base == base:
+        return None
+    return new_base
 
 
 def match_yinliu(name, size=0,
@@ -103,15 +178,32 @@ def match_yinliu(name, size=0,
     if base_name in EXACT_YINLIU_NAMES:
         return True, f"精确匹配 '{base_name}'"
 
-    # ② 关键词包含匹配（正则）
+    # ② 关键词匹配：先在「剥离广告包裹后的主体」上判定。
+    #    主体干净、只有包裹片段像广告的（43 《风筝》【更多好课加微信xxx】），
+    #    判为「正课 + 广告尾巴」→ 不删，交给 rename 把号改成自己的。
     kw_pattern = _compile_patterns(keywords)
+    # 先去掉扩展名再剥离包裹片段：
+    # 【加微信xxx领资料】.png 若带着扩展名一起剥离，主体会剩 ".png"
+    # （splitext 对 ".png" 返回 (".png","")，判不出空），纯广告文件就漏网了。
+    base_root, _ = os.path.splitext(base_name)
+    main_name, segs = strip_ad_wrappers(base_root)
+    kw_match_main = kw_pattern.search(main_name or "")
+
+    if kw_match_main:
+        return True, f"关键词命中 '{kw_match_main.group(0)}'"
+
+    if segs and main_name.strip():
+        if any(_AD_WRAPPER_HINT_RE.search(s) for s in segs):
+            return False, ""
+
+    # ③ 兜底：对完整文件名匹配（无包裹的、或剥完为空的纯广告名）
     kw_match = kw_pattern.search(base_name)
 
     if kw_match:
         reason = f"关键词命中 '{kw_match.group(0)}'"
         return True, reason
 
-    # ③ 激进模式：小体积 + 后缀
+    # ④ 激进模式：小体积 + 后缀
     size_val = size or 0
     if aggressive_ext_check:
         ext = os.path.splitext(base_name)[1].lower()
