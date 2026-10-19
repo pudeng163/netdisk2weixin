@@ -26,7 +26,7 @@ python main.py quark --count 3 --preview        # 只预览不转存
 
 1. 夸克网盘转存到自己账号
 2. 生成新的分享链接替换原链接
-3. 上传引流 PDF（`assets/99999.pdf`）到转存文件夹根目录
+3. 上传引流文件（`assets/99999.pdf` 及 `.env` 里 `QUARK_YINLIU_FILES` 配置的其它文件，如视频教程）到转存文件夹内
 4. 推送企业微信通知
 5. 写入飞书多维表格
 
@@ -47,6 +47,6 @@ python main.py quark --count 3 --preview        # 只预览不转存
 | 报错 | 处理 |
 |------|------|
 | 账号被封/链接失效 | 跳过该条，换源或让用户换链接 |
-| 引流 PDF 400 | 已知 bug，不影响主流程，忽略即可 |
+| 引流文件 400 | 已知 bug，不影响主流程，忽略即可 |
 | .env 没配 FEISHU | 飞书跳过，其他正常 |
 | QUARK_COOKIE 过期 | 让用户更新 Cookie |

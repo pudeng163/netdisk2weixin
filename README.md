@@ -7,6 +7,21 @@
 
 ---
 
+## 资源互助群 & 打赏支持
+
+**学习休闲资源互助公益分享群** —— 国内外影剧、动漫、综艺、图书、课程全覆盖。
+在公众号里发送【加群】，拉你进群 👇
+
+![学习休闲资源互助公益分享群](https://ik.imagekit.io/duan/typora-images/clipboard-2026-10-17T08-02-08-139Z-30bca8c7_ybfbrzCkS.jpg)
+
+如果这个项目对你有帮助，欢迎扫码打赏支持 ❤️
+
+| 微信支付 | 支付宝 |
+|:---:|:---:|
+| ![微信支付](https://ik.imagekit.io/duan/typora-images/mmexport1792066824132_2lkwHLKGI.jpg) | ![支付宝](https://ik.imagekit.io/duan/typora-images/mmexport1792066822824_suCsQ0-Ie.jpg) |
+
+---
+
 ## 0. 这个工具是干嘛的
 
 **网盘拉新统一工具**：自动转存 → 引流清理 → 上传自己的引流 PDF → 生成新分享链接 → 推送到企业微信 + 飞书多维表格。
@@ -32,6 +47,7 @@
 | 批量转存（随机） | `python main.py quark --count 6` | 从本地资源池随机抽 N 个转存 |
 | 批量转存（AI 挑） | 同上 + 在 Trae 里说"推 6 个学习类" | AI 按类型从池子挑选 |
 | 文本替换 | `python main.py --text "带链接的文本"` | 手里有现成链接文本，批量替换成自己的 |
+| **盘内直推（不转存）** | `python tools/share_local.py --random 6` | 网盘容量已满时，直接分享网盘已有资源 |
 
 ### 自动流程（不管哪种模式都一样）
 
@@ -146,6 +162,8 @@ KUAKE_COOKIE=            # kuake CLI 专用（填和 QUARK_COOKIE 相同的值�
 # QUARK_KUAKE_CLI=       # 留空则自动选系统默认路径，换版本时自定义
 QUARK_FOLDER_FID=0       # 转存目标文件夹 fid，"0" = 根目录
 QUARK_YINLIU_PDF=assets/99999.pdf
+QUARK_YINLIU_FILES=assets/99999.pdf,assets/【2026最新】夸克网盘扩容1T教程.mp4
+KUAKE_COOKIE_2=          # 第二个夸克账号（盘内直推 --account 2 用，见 3.10 节）
 
 # ====== 飞书多维表格（可选）======
 FEISHU_ENABLED=false
@@ -182,6 +200,9 @@ FEISHU_TABLE_ID=            # 多维表格 URL 里 ?table= 后面那串
 > - `KUAKE_COOKIE` — `kuake-v1.5.0-*.exe` CLI 用（引流 PDF 上传、fid 转路径）
 >
 > Cookie 刷新时记得**两个一起更新**。
+
+> **多账号**：盘内直推模式支持多号，见 [3.10 节](#310-盘内直推模式share_localpy--联动分享py)。
+> 在 `.env` 加 `KUAKE_COOKIE_2=`（第二号的 Cookie），运行时用 `--account 2` 切换。
 
 ### 2.5 飞书多维表格（可选）
 
@@ -231,7 +252,7 @@ Linux ARM 上误选 x86-64 的 ELF 后报出难以排查的 `Exec format error`�
 > macOS ARM 没有 kuake 原生版，程序会回退到 x86-64 版本并要求系统装有 Rosetta 2。
 > 未安装时会明确提示执行 `softwareupdate --install-rosetta`。
 
-**kuake CLI 用途：** 上传引流 PDF 到网盘（比 API 上传文件快，且不依赖浏览器登录态）。
+**kuake CLI 用途：** 上传引流文件（PDF / 视频等）到网盘（比 API 上传文件快，且不依赖浏览器登录态）。
 
 **CLI 认证方式：** 读取项目根目录 `.env` 里的 `KUAKE_COOKIE`（v1.5.0 不再用 config.json）。
 可以直接测试是否生效：
@@ -259,7 +280,7 @@ python main.py quark                       # 只跑夸克，默认 COUNT
 python main.py quark --count 10            # 转存 10 个
 python main.py quark --include 小学         # 本地关键词过滤
 python main.py quark --force               # 强制跳过缓存
-python main.py quark --preview             # 只预览不转存
+python main.py quark --preview             # 只预览不转存（不推进游标，预览后可直接正式推同一批）
 python main.py baidu                       # 只跑百度
 python main.py all                         # 百度 + 夸克 一起跑
 
@@ -435,7 +456,69 @@ python tools/list_resources.py --from-pool
 
 ---
 
-## 3.10 Skill 功能（Trae AI 自动调用）
+## 3.10 盘内直推模式（share_local.py / 联动分享.py）
+
+**网盘容量已满、无法再转存时**，直接分享网盘里已有的资源（不转存、不占容量、秒级完成）。
+
+### 基本用法（`tools/share_local.py`）
+
+```bash
+# 列出 /自动转存 下全部目录
+python tools/share_local.py --list
+
+# 随机推 6 个（自动查重：已推送过的不会重复推）
+python tools/share_local.py --random 6
+python tools/share_local.py --random 6 --seed 42      # 固定种子，可复现
+
+# 指定名称推送
+python tools/share_local.py --names "资源A" "资源B"
+```
+
+### 多账号
+
+`.env` 里为每个号配一份 Cookie（`KUAKE_COOKIE_2`、`KUAKE_COOKIE_3`…），用 `--account N` 切换：
+
+```bash
+python tools/share_local.py --account 2 --folder / --random 6
+```
+
+- 查重记录按账号分文件（`share_url_total_2.txt` 等），互不干扰
+- 2 号盘资源在根目录，记得带 `--folder /`
+
+### 联动分享（多资源打包进同一个链接）
+
+`--with-fid` 把指定 fid（如防失联目录）打包进**每个**分享链接（走夸克原生多 fid 分享 API，kuake CLI 只支持单路径）：
+
+```bash
+python tools/share_local.py --account 2 --folder "/小学资料（2026年最新）" \
+    --random 6 --with-fid 4bc25d8f3d7c4d3d8686e227cb53147d
+```
+
+随机模式会自动排除被 `--with-fid` 打包的目录本身，不会单独再分享它。
+
+### 联动分享.py（预设一键版）
+
+预设了「二号盘 + 小学资料目录 + 防失联目录联动 + 不上传引流文件」，直接跑：
+
+```bash
+python 联动分享.py            # 默认随机 6 个
+python 联动分享.py 10         # 随机 10 个
+python 联动分享.py --names "田连元评书大合集"   # 指定名称
+```
+
+### 其他开关
+
+| 参数 | 说明 |
+|---|---|
+| `--folder` | 资源所在目录（默认 `/自动转存`） |
+| `--no-yinliu` | 不上传引流文件（容量满时上传会报 `capacity limit`，加上此开关即可） |
+
+> 已推送记录：账号 1 写 `data/share/share_url_total.txt`，账号 N 写 `share_url_total_N.txt`，
+> 格式与转存模式相同（标题 | 链接 | DONE）。查重时去空格、去 `(1)` 这类后缀后匹配。
+
+---
+
+## 3.11 Skill 功能（Trae AI 自动调用）
 
 项目内置 3 个 Skill（`.trae/skills/`），在 Trae 里直接用自然语言就能触发。
 
@@ -483,7 +566,8 @@ python main.py quark --count 6 --exclude 短剧
 ├── 自动转存/                           ← QUARK_FOLDER_FID 指向这里
 │   ├── 小树老师《小学数学课程合集》.../   ← 转存的分享文件夹（对外分享的是这个）
 │   │   ├── [原始资源文件...]
-│   │   └── 99999.pdf                    ← 引流 PDF 在分享文件夹内 ✅
+│   │   ├── 99999.pdf                    ← 引流 PDF 在分享文件夹内 ✅
+│   │   └── 【2026最新】夸克网盘扩容1T教程.mp4   ← 引流视频同样投放 ✅
 │   ├── 《小学教材全解精析》1-6年级/
 │   │   ├── [原始资源文件...]
 │   │   └── 99999.pdf
@@ -492,15 +576,25 @@ python main.py quark --count 6 --exclude 短剧
 
 引流 PDF **上传到每个转存的资源文件夹内**，这样用户打开你的分享链接时，能同时看到原始文件和引流 PDF。
 
-### 4.3 引流 PDF 说明
+### 4.3 引流文件说明（支持 PDF + 视频）
 
 | 项 | 值 |
 |---|---|
 | 默认文件 | `assets/99999.pdf` |
-| 配置 | `.env` 的 `QUARK_YINLIU_PDF` |
+| 配置 | `.env` 的 `QUARK_YINLIU_FILES`（逗号分隔，可多个文件） |
+| 兼容旧配置 | `QUARK_YINLIU_PDF`（未配 `QUARK_YINLIU_FILES` 时生效） |
 | 上传方式 | kuake CLI（秒传，不占空间） |
-| 上传路径 | `{QUARK_FOLDER_FID}/{转存的资源名}/99999.pdf` |
-| 关闭 | 把 `QUARK_YINLIU_PDF=` 留空 |
+| 上传路径 | `{QUARK_FOLDER_FID}/{转存的资源名}/{文件名}` |
+| 关闭 | 把 `QUARK_YINLIU_FILES=` 留空并删掉 `QUARK_YINLIU_PDF` |
+
+配置示例（同时投放 PDF 和视频教程）：
+
+```bash
+QUARK_YINLIU_FILES=assets/99999.pdf,assets/【2026最新】夸克网盘扩容1T教程.mp4
+```
+
+所有文件都会上传到**每一个**转存的资源文件夹内，同名自动跳过不存在的文件。
+自己的引流文件会自动加入清理排除名单，不会被引流清理规则误删。
 
 ---
 
@@ -510,6 +604,7 @@ python main.py quark --count 6 --exclude 短剧
 netdisk2weixin/
 ├── main.py              # 统一入口（所有模式都走这里）
 ├── README.md            # 本文件
+├── 联动分享.py          # 一键联动分享（二号盘小学资料 + 防失联目录打包）
 ├── .env                 # 唯一配置文件（已 gitignore，含 Cookie）
 ├── .env.example         # 配置样例
 ├── 资源池.json          # 本地资源池（默认启用，1000+ 条夸克资源）
@@ -538,6 +633,7 @@ netdisk2weixin/
 │   └── pansou_launcher.py # PanSou 启动/停止/状态/重启 + 自动选二进制
 │
 ├── tools/               # 辅助工具（独立运行的脚本）
+│   ├── share_local.py   #   盘内直推：分享网盘已有资源（多账号/随机查重/多fid联动）
 │   ├── list_resources.py #  导出空关键词全量资源清单（刷新/导出 JSON）
 │   └── diagnose.py      #  环境诊断（平台→二进制→服务→插件一条龙）
 │
@@ -547,6 +643,7 @@ netdisk2weixin/
 │
 ├── assets/              # 静态资源
 │   ├── 99999.pdf        #   夸克引流文件（自动上传到每个分享文件夹）
+│   ├── *.mp4           #   其他引流文件（视频教程等，同样自动上传）
 │   └── bin/             #   kuake CLI（多平台，自动识别）
 │       ├── kuake-v1.5.0-windows-amd64.exe
 │       ├── kuake-v1.5.0-linux-amd64
@@ -609,6 +706,13 @@ v1.5.0 的 kuake CLI **不再读 `assets/bin/config.json`**，它要读项目根
 KUAKE_COOKIE=你的完整cookie字符串
 ```
 然后用 `.\assets\bin\kuake-v1.5.0-windows-amd64.exe user` 测试，返回 `success: true` 即生效。
+
+**Q：网盘容量满了转存不了怎么办？**
+用盘内直推模式（见 [3.10 节](#310-盘内直推模式share_localpy--联动分享py)）：直接分享网盘里已有的资源，不转存、不占容量：
+```bash
+python tools/share_local.py --random 6
+```
+引流文件上传也会报 `capacity limit`，加 `--no-yinliu` 跳过即可。
 
 **Q：API 一直超时 / 400？**
 重试机制会自动跑 3 次每次等 6 秒。全部失败后会回退到缓存（如果有）。如果是 PanSou 自建后端返回的 400，多半是插件源临时抽风，换个关键词或等几分钟再试。

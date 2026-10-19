@@ -5,7 +5,7 @@ import random
 import asyncio
 import urllib.parse
 
-from core.config import load_config, get_kuake_cli, get_yinliu_pdf, SHARE_DIR
+from core.config import load_config, get_kuake_cli, get_yinliu_files, SHARE_DIR
 from core.logger import log_print
 
 
@@ -65,7 +65,7 @@ def extract_links(text):
 
 async def _save_and_share_quark(url, password, folder_fid, kuake_cli, pdf_path="",
                                 folder_path=""):
-    from adapters.quark import QuarkPanFileManager, _upload_yinliu_pdf
+    from adapters.quark import QuarkPanFileManager, _upload_yinliu_files
     config = load_config()
     quark_cookie = config["quark"].get("cookie", "")
 
@@ -92,9 +92,11 @@ async def _save_and_share_quark(url, password, folder_fid, kuake_cli, pdf_path="
         password="", traverse_depth=0
     )
 
-    if pdf_path and os.path.exists(pdf_path):
+    yinliu_files = [pdf_path] if isinstance(pdf_path, str) else list(pdf_path or [])
+    yinliu_files = [p for p in yinliu_files if p and os.path.exists(p)]
+    if yinliu_files:
         title = share_result.get("title", "unknown")
-        _upload_yinliu_pdf(kuake_cli, pdf_path, title, folder_path)
+        _upload_yinliu_files(kuake_cli, yinliu_files, title, folder_path)
 
     return {
         "platform": "quark",
@@ -172,7 +174,7 @@ async def run_from_text(text, save_results=False, push_wechat=False):
     from adapters.quark import _resolve_fid_to_path
 
     kuake_cli = get_kuake_cli(config)
-    pdf_path = get_yinliu_pdf(config)
+    pdf_path = get_yinliu_files(config)
     quark_cfg = config["quark"]
     folder_fid = quark_cfg.get("folder_fid", "0") or "0"
     folder_path = _resolve_fid_to_path(kuake_cli, folder_fid)

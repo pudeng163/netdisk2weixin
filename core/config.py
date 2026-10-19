@@ -93,6 +93,8 @@ def load_config():
     quark_kuake_cli = _get("QUARK_KUAKE_CLI", "")
     quark_folder_fid = _get("QUARK_FOLDER_FID", "0") or "0"
     quark_yinliu_pdf = _get("QUARK_YINLIU_PDF", "assets/99999.pdf")
+    # 引流文件（可多个，逗号分隔）；未配置 QUARK_YINLIU_FILES 时回退到 QUARK_YINLIU_PDF
+    quark_yinliu_files = _split_csv(_get("QUARK_YINLIU_FILES", "")) or _split_csv(quark_yinliu_pdf)
     quark_yinliu_prob = _get("QUARK_YINLIU_PROBABILITY", 0.0, float)
     quark_yinliu_subdir = _get("QUARK_YINLIU_SUBDIR", "自动转存")
 
@@ -122,6 +124,7 @@ def load_config():
             "kuake_cli": quark_kuake_cli,
             "folder_fid": quark_folder_fid,
             "yinliu_pdf": quark_yinliu_pdf,
+            "yinliu_files": quark_yinliu_files,
             "yinliu_probability": quark_yinliu_prob,
             "yinliu_subdir": quark_yinliu_subdir,
         },
@@ -168,6 +171,21 @@ def get_kuake_cli(config) -> str:
 def get_yinliu_pdf(config) -> str:
     rel = config["quark"].get("yinliu_pdf") or "assets/333333.pdf"
     return resolve_path(rel)
+
+
+def get_yinliu_files(config) -> list:
+    """返回引流文件（PDF / 视频等）的绝对路径列表。
+
+    优先读 .env 的 QUARK_YINLIU_FILES（逗号分隔，支持多个文件）；
+    未配置时回退到 QUARK_YINLIU_PDF（单文件，保持向后兼容）。
+    返回的列表已过滤掉空值，不存在的文件在调用方跳过并告警。
+    """
+    quark = config.get("quark", {}) or {}
+    rels = quark.get("yinliu_files") or []
+    if not rels:
+        single = quark.get("yinliu_pdf")
+        rels = [single] if single else []
+    return [resolve_path(r) for r in rels if r]
 
 
 # ---------------------------------------------------------------------------

@@ -21,7 +21,8 @@ import httpx
 
 from core import cache
 from core.config import (load_config, get_kuake_cli, get_yinliu_pdf,
-                         resolve_path, CACHE_DIR, SHARE_DIR, LOG_DIR)
+                         get_yinliu_files, resolve_path, CACHE_DIR,
+                         SHARE_DIR, LOG_DIR)
 from core.logger import log_print
 from core.notifier import send_wechat_notification
 
@@ -454,23 +455,51 @@ def _resolve_fid_to_path(kuake_cli, folder_fid):
     return ""
 
 
-def _upload_yinliu_pdf(kuake_cli, pdf_path, title="", folder_path=""):
+def _upload_yinliu_files(kuake_cli, file_paths, title="", folder_path=""):
+    """把引流文件（PDF / 视频等，可多个）上传到本次转存的资源文件夹内。
+
+    Args:
+        kuake_cli: kuake CLI 可执行文件路径
+        file_paths: 文件路径（单个 str 或 list）
+        title: 分享标题（文件夹名）
+        folder_path: 转存根目录路径
+    """
     if not kuake_cli or not os.path.exists(kuake_cli):
         log_print(f"kuake 可执行文件不存在，跳过引流文件上传: {kuake_cli}", "WARNING")
         return
-    if not os.path.exists(pdf_path):
-        log_print(f"引流 PDF 不存在，跳过上传: {pdf_path}", "WARNING")
+    if isinstance(file_paths, str):
+        file_paths = [file_paths]
+    file_paths = [p for p in (file_paths or []) if p]
+    if not file_paths:
         return
+
     if title and folder_path:
         prefix = folder_path.rstrip("/") + "/" + title
     elif title:
         prefix = "/" + title
     else:
         prefix = folder_path or ""
-    pdf_filename = os.path.basename(pdf_path)
-    cmd = f'{kuake_cli} upload "{pdf_path}" "{prefix}/{pdf_filename}"'
-    log_print(f"执行: {cmd}", "DEBUG")
-    os.system(cmd)
+
+    uploaded = 0
+    for path in file_paths:
+        if not os.path.exists(path):
+            log_print(f"引流文件不存在，跳过上传: {path}", "WARNING")
+            continue
+        filename = os.path.basename(path)
+        cmd = f'{kuake_cli} upload "{path}" "{prefix}/{filename}"'
+        log_print(f"执行: {cmd}", "DEBUG")
+        try:
+            os.system(cmd)
+            uploaded += 1
+        except Exception as e:
+            log_print(f"引流文件上传失败: {filename} - {e}", "WARNING")
+    if uploaded:
+        log_print(f"引流文件已上传 {uploaded} 个到: {prefix}", "INFO")
+
+
+# 兼容旧调用名（单文件）
+def _upload_yinliu_pdf(kuake_cli, pdf_path, title="", folder_path=""):
+    return _upload_yinliu_files(kuake_cli, [pdf_path], title, folder_path)
 
 
 def _kuake_list(kuake_cli, path):
@@ -745,6 +774,8 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
                                 include=None, exclude=None, preview_only=False,
                                 selected_items=None, folder_fid="0",
                                 force=False, filter_cfg=None):
+    # 引流文件列表：pdf_path 传 str（兼容旧调用）或 list
+    yinliu_files = [pdf_path] if isinstance(pdf_path, str) else list(pdf_path or [])
     manager = QuarkPanFileManager(cookie=quark_cookie)
 
     folder_path = _resolve_fid_to_path(kuake_cli, folder_fid)
@@ -791,8 +822,13 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
         selected.append(quark_data[idx])
 
     next_cursor = (cursor + count) % total
-    _save_cursor(next_cursor)
-    log_print(f"游标已更新：{cursor} → {next_cursor}（下次从第 {next_cursor + 1} 条开始）", "INFO")
+    if preview_only:
+        # 预览是只读操作：不写游标，保证「预览 → 直接正式推」推走的是同一批
+        log_print(f"预览模式：游标保持 {cursor} 不变（正式推送将从第 {cursor + 1} 条起取 {count} 条）",
+                  "INFO")
+    else:
+        _save_cursor(next_cursor)
+        log_print(f"游标已更新：{cursor} → {next_cursor}（下次从第 {next_cursor + 1} 条开始）", "INFO")
 
     if preview_only:
         items = [{"index": i + 1, "note": it.get("note", "无标题"),
@@ -840,8 +876,10 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
                 paths = _resolve_top_fids_to_paths(kuake_cli, folder_fid, r["file_id"])
                 all_top_paths.extend(paths)
         try:
-            pdf_name = os.path.splitext(os.path.basename(pdf_path))[0] if pdf_path else ""
-            cleanup_excludes = [pdf_name] if pdf_name else None
+            # 排除自己的引流文件（PDF / 视频等），避免被清理规则误删
+            cleanup_excludes = [os.path.splitext(os.path.basename(p))[0]
+                                for p in yinliu_files if p]
+            cleanup_excludes = cleanup_excludes or None
             cleanup_result = clean_yinliu_after_save(
                 kuake_cli, all_top_paths, filter_cfg, excludes=cleanup_excludes,
             )
@@ -878,9 +916,8 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
             log_print(f"分享成功 [{save_result['index']}]: {title} - {share_url}",
                       "SUCCESS")
 
-            # 上传引流 PDF
-            if pdf_path and os.path.exists(pdf_path):
-                _upload_yinliu_pdf(kuake_cli, pdf_path, title, folder_path)
+            # 上传引流文件（PDF / 视频等）
+            _upload_yinliu_files(kuake_cli, yinliu_files, title, folder_path)
 
             with open(SHARE_TOTAL_FILE, "a", encoding="utf-8") as f:
                 f.write(f"{title}  |  {share_url}  |  DONE\n")
@@ -950,7 +987,7 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
         count = quark.get("count") or config["count"]
     webhook_url = config.get("wechat", {}).get("webhook_url", "")
     kuake_cli = get_kuake_cli(config)
-    pdf_path = get_yinliu_pdf(config)
+    pdf_path = get_yinliu_files(config)
     folder_fid = quark.get("folder_fid", "0") or "0"
 
     if not quark_cookie:
