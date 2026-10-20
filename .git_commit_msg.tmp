@@ -1,0 +1,8 @@
+feat: 盘内直推模式 + 多账号 + 联动分享
+
+- tools/share_local.py: 直接分享网盘已有资源（不转存，容量满可用），
+  支持多账号(--account N)、随机查重、多fid联动打包(--with-fid)、跳过引流(--no-yinliu)
+- 联动分享.py: 预设二号盘小学资料+防失联目录联动的一键分享
+- tools/complete_pending_push.py: 补推工具
+- .env.example: 新增 KUAKE_COOKIE_2 多账号配置
+- README: 新增 3.10 盘内直推章节、多账号说明、FAQ

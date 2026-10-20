@@ -29,6 +29,110 @@ LINK_PATTERNS = [
 PWD_PATTERN = re.compile(r"pwd[=:：]\s*([a-zA-Z0-9]{4})")
 CODE_PATTERN = re.compile(r"(?:提取码|密码|验证码|passcode)[=:：]\s*([a-zA-Z0-9]{4})")
 
+# 链接行常见的「引导词」——剥离 URL 后如果只剩这些，说明真正的标题在上一行。
+# 例：「链接：https://...」「地址：https://...」「提取码：ab12 https://...」
+_TITLE_NOISE_RE = re.compile(
+    r"^(?:"
+    r"链接|下载链接|网盘链接|分享链接|资源链接|链\s*接|地址|下载地址|网盘地址|"
+    r"提取码|密码|验证码|passcode|pwd|口令|复制|点击|请|点此|"
+    r"link|url|链接地址|下载|下载地址"
+    r")\s*[：:，,。.、\-—|｜]?\s*$",
+    re.IGNORECASE,
+)
+
+# 标题里出现这些词，基本可判定不是标题（是引导语/表头）
+_TITLE_HINT_RE = re.compile(
+    r"(?:链接|地址|提取码|密码|复制|打开|点击|下载)", re.IGNORECASE)
+
+
+def _clean_title_line(line: str) -> str:
+    """把一行文本清洗成候选标题：去 URL、去 emoji 序列、去首尾分隔符。"""
+    if not line:
+        return ""
+    s = re.sub(r"https?://\S+", " ", line)
+    # 去掉 emoji（含变体选择符、ZWJ 组合）与常见符号前缀
+    s = re.sub(r"[\U00010000-\U0010ffff\U0001F000-\U0001FAFF\ufe0f\u200d]", "", s)
+    s = s.strip().rstrip("：:-—|｜><=*·. \t")
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _is_noise_title(s: str) -> bool:
+    """判断清洗后的字符串是否只是无意义的引导词。"""
+    if not s:
+        return True
+    if _TITLE_NOISE_RE.match(s):
+        return True
+    # 纯符号/纯数字（且很短）也认为无意义
+    if not re.search(r"[\u4e00-\u9fff a-zA-Z]", s):
+        return True
+    if len(s) <= 2 and _TITLE_HINT_RE.search(s):
+        return True
+    return False
+
+
+def _pick_display_title(origin_title: str, api_title: str, index) -> str:
+    """决定展示/写飞书用的资源名称。
+
+    **优先级：转存成功时显示的名称（分享接口返回的 title）最高**——
+    这是网盘里真实的资源名，与「转存成功」日志一致，也是用户期望看到的。
+
+    原文标题只在接口没返回 title 时作为兜底；且必须先做噪音判断
+    （历史实现直接 `origin_title or title`，origin_title 是「链接」这类
+    引导词时会把正确的 api_title 盖掉，导致飞书资源名为「链接」）。
+    """
+    api = (api_title or "").strip()
+    if api and api != "unknown":
+        return api
+    if origin_title and not _is_noise_title(origin_title):
+        return origin_title
+    return f"资源{index}"
+
+
+def extract_origin_title(text: str, span, url: str, max_lookback: int = 6) -> str:
+    """从原文本中提取链接对应的「原文标题」。
+
+    策略（两行式文案是主流，必须支持回溯）：
+      1. 先看链接所在行，剥离 URL 后若还有实质内容 → 用它
+      2. 否则**向上回溯**若干行，找到第一个像标题的行
+      3. 都找不到返回空串（调用方会回退到分享接口返回的标题）
+
+    原实现只看链接所在行，遇到「标题在上一行、链接独占一行」的常见排版时
+    会提取出「链接」二字，并因为 `origin_title or title` 的优先级把正确标题
+    覆盖掉。这里补上回溯与噪音过滤。
+    """
+    if not url or not span:
+        return ""
+    lines = text.splitlines(keepends=True)
+    # 定位链接所在行的索引
+    pos = 0
+    cur_line_idx = -1
+    for li, ln in enumerate(lines):
+        if pos <= span[0] < pos + len(ln):
+            cur_line_idx = li
+            break
+        pos += len(ln)
+    if cur_line_idx < 0:
+        return ""
+
+    # ① 链接所在行
+    cand = _clean_title_line(lines[cur_line_idx])
+    if not _is_noise_title(cand):
+        return cand
+
+    # ② 向上回溯
+    steps = 0
+    li = cur_line_idx - 1
+    while li >= 0 and steps < max_lookback:
+        cand = _clean_title_line(lines[li])
+        if not _is_noise_title(cand):
+            # 太长的行多半是段落正文而非标题，但仍可接受（截断）
+            return cand[:120]
+        li -= 1
+        steps += 1
+
+    return ""
+
 
 def extract_links(text):
     found = []
@@ -65,7 +169,13 @@ def extract_links(text):
 
 async def _save_and_share_quark(url, password, folder_fid, kuake_cli, pdf_path="",
                                 folder_path=""):
+<<<<<<< HEAD
     from adapters.quark import QuarkPanFileManager, _upload_yinliu_files
+=======
+    from adapters.quark import (QuarkPanFileManager, _upload_yinliu_pdf,
+                                clean_yinliu_after_save,
+                                _resolve_top_fids_to_paths)
+>>>>>>> e4fb7ff1f606566358dfbe04a902afb748bf9c53
     config = load_config()
     quark_cookie = config["quark"].get("cookie", "")
 
@@ -83,6 +193,34 @@ async def _save_and_share_quark(url, password, folder_fid, kuake_cli, pdf_path="
         raise RuntimeError("转存结果为空")
 
     file_ids = save_result["data"]["save_as"]["save_as_top_fids"]
+
+    # ── 转存后、分享前：清理别人塞在里面的引流文件 ──────────────────────
+    # 与批量模式（adapters/quark.py）保持一致的行为：把转存进来的顶层条目
+    # 展开成路径，交给 clean_yinliu_after_save 按规则删掉加群/公众号之类的
+    # 引流文件，避免自己的分享里夹带别人的引流内容。
+    cleanup_result = None
+    filter_cfg = config.get("clean_yinliu", {}) or {}
+    if filter_cfg.get("enabled"):
+        try:
+            top_paths = _resolve_top_fids_to_paths(kuake_cli, folder_fid, file_ids)
+            if top_paths:
+                log_print(f"开始清理转存内容中的引流文件（{len(top_paths)} 个顶层条目）...", "INFO")
+                # 排除我们自己的引流 PDF 名，避免刚上传的 99999.pdf 被误删
+                pdf_name = (os.path.splitext(os.path.basename(pdf_path))[0]
+                            if pdf_path else "")
+                cleanup_excludes = [pdf_name] if pdf_name else None
+                cleanup_result = clean_yinliu_after_save(
+                    kuake_cli, top_paths, filter_cfg, excludes=cleanup_excludes)
+                log_print(
+                    f"引流清理完成: 删除 {len(cleanup_result.get('deleted', []))} 个",
+                    "SUCCESS" if cleanup_result.get("deleted") else "INFO")
+            else:
+                log_print("未能解析转存条目的路径，跳过引流清理", "WARNING")
+        except Exception as e:
+            # 清理只是优化项，失败不能阻断转存/分享主流程
+            log_print(f"引流清理异常（已跳过）: {e}", "WARNING")
+    else:
+        log_print("引流清理未开启（.env 的 CLEAN_YINLIU_ENABLED），跳过", "INFO")
 
     await asyncio.sleep(random.uniform(1, 3))
 
@@ -102,59 +240,56 @@ async def _save_and_share_quark(url, password, folder_fid, kuake_cli, pdf_path="
         "platform": "quark",
         "save_result": save_result,
         "share_result": share_result,
+        "cleanup_result": cleanup_result,
     }
 
 
 def _save_and_share_baidu(url, password, target_folder):
-    from adapters.baidu import Network, normalize_link, parse_url_and_code
+    """百度网盘：转存 + 分享（文本替换路径）。
 
-    config = load_config()
-    baidu = config["baidu"]
-    cookie = baidu.get("cookie", "")
-    if not cookie:
-        raise RuntimeError("百度未配置 Cookie")
+    直接复用 adapters.baidu.run() 的单资源模式，而不是另写一套 HTTP 调用。
+    早期版本这里手写了一套 network.transfer()/get_transfer_params()，
+    但 adapters.baidu.Network 里并没有这两个方法（只有 transfer_file），
+    于是每次都会抛 "too many values to unpack / AttributeError"，
+    百度链路实际上从未跑通过。复用 run() 可以保证两条路径行为一致。
+    """
+    from adapters import baidu as baidu_adapter
 
-    network = Network()
-    network.headers["Cookie"] = cookie
+    # run() 内部会自己读 config 里的 cookie / 目录，这里只需要把单个资源塞进去。
+    # selected_items 走的是"已有资源直接处理"分支，跳过缓存与随机抽样。
+    item = {
+        "url": url,
+        "password": password or "",
+        "note": url,
+    }
 
-    bdstoken = network.get_bdstoken()
-    if isinstance(bdstoken, int):
-        raise RuntimeError(f"获取 bdstoken 失败: {bdstoken}")
-    network.bdstoken = bdstoken
+    cfg = load_config().get("baidu", {})
+    result = baidu_adapter.run(
+        count=1,
+        selected_items=[item],
+        preview_only=False,
+        platform_cfg=cfg,
+        notify=False,   # 文本替换路径统一由外层推一条，避免重复推送
+    )
 
-    result = network.get_dir_list(f"/{target_folder}")
-    if isinstance(result, int):
-        rc = network.create_dir(target_folder)
-        if rc != 0:
-            raise RuntimeError(f"创建目录失败: {rc}")
+    if not result or result.get("code") != 200:
+        raise RuntimeError((result or {}).get("message", "百度转存失败"))
 
-    link_text = f"{url} {password}" if password else url
-    normalized = normalize_link(link_text)
-    parsed_url, code = parse_url_and_code(normalized)
-    if not parsed_url:
-        raise RuntimeError(f"无法解析百度链接: {url}")
+    share_results = result.get("share_results") or []
+    if not share_results:
+        raise RuntimeError("百度转存后未拿到分享链接（可能被限流或资源已失效）")
 
-    if code:
-        bdclnd = network.verify_pass_code(parsed_url, code)
-        if isinstance(bdclnd, int):
-            raise RuntimeError(f"验证码校验失败: {bdclnd}")
-
-    fs_ids, filenames = network.get_transfer_params(parsed_url)
-    if not fs_ids:
-        raise RuntimeError("获取转存参数失败")
-
-    save_result = network.transfer(fs_ids, filenames, f"/{target_folder}")
-    if save_result.get("errno", 0) != 0:
-        raise RuntimeError(f"转存失败: {save_result}")
-
-    fs_id = fs_ids[0] if isinstance(fs_ids, list) else fs_ids
-    random_code = "".join(random.choices("abcdefghijklmnopqrstuvwxyz1234567890", k=4))
-    share_result = network.create_share(fs_id, expiry=4, password=random_code)
-
+    first = share_results[0]
+    # run() 的 note 优先用调用方传入的（文本替换路径传的是 URL，没有意义），
+    # 回退到真正转存下来的文件名。
+    api_title = first.get("file_name") or ""
     return {
         "platform": "baidu",
-        "save_result": save_result,
-        "share_result": share_result,
+        "share_result": {
+            "url": first.get("share_url", ""),
+            "title": api_title,
+            "size": first.get("size", ""),
+        },
     }
 
 
@@ -192,21 +327,9 @@ async def run_from_text(text, save_results=False, push_wechat=False):
         error_msg = None
 
         # 提取该链接在原文本中的「原文标题」：
-        # 取链接所在行的行首部分（去掉链接本身），作为对用户展示的标题，
-        # 避免推送时用的是分享接口返回的内部标题（常与原标题不符）。
-        origin_title = ""
-        try:
-            line_start = new_text.rfind("\n", 0, link["span"][0]) + 1
-            line_end = new_text.find("\n", link["span"][1])
-            if line_end < 0:
-                line_end = len(new_text)
-            raw_line = new_text[line_start:line_end]
-            origin_title = raw_line.replace(original_url, "")
-            # 去掉行尾的分隔符（：/ - / | 等）
-            origin_title = origin_title.strip().rstrip("：:-—|｜ \t")
-            origin_title = re.sub(r"\s+", " ", origin_title).strip()
-        except Exception:
-            origin_title = ""
+        # 优先用行内/上一行的文案标题，避免推送时用的是分享接口返回的内部标题。
+        # 详见 extract_origin_title 的文档（支持向上回溯 + 噪音过滤）。
+        origin_title = extract_origin_title(new_text, link["span"], original_url)
 
         try:
             log_print(f"\n--- 处理 {i+1}/{len(links)}: [{platform}] {original_url[:60]} ---")
@@ -243,8 +366,43 @@ async def run_from_text(text, save_results=False, push_wechat=False):
                 search_start = max(0, links[i]["span"][0] + offset - 20)
             idx = new_text.find(original_url, search_start)
             if idx >= 0:
-                new_text = new_text[:idx] + new_url + new_text[idx + len(original_url):]
+                tail_start = idx + len(original_url)
+                new_text = new_text[:idx] + new_url + new_text[tail_start:]
                 offset += len(new_url) - len(original_url)
+                delta = len(new_url) - len(original_url)
+
+                # 百度链接的提取码：新链接自带 ?pwd=xxxx 时，原文旁边的
+                # 「提取码: 6666」还是旧分享的密码，必须一起改掉，
+                # 否则用户拿着新链接 + 旧密码必然打不开。
+                pwd_m = re.search(r"[?&]pwd=([A-Za-z0-9]{4})", new_url)
+                if pwd_m:
+                    new_pwd = pwd_m.group(1)
+                    after = new_text[tail_start + delta:tail_start + delta + 40]
+                    code_m = CODE_PATTERN.search(after)
+                    if code_m and code_m.group(1) != new_pwd:
+                        a, b = (tail_start + delta + code_m.start(1),
+                                tail_start + delta + code_m.end(1))
+                        new_text = new_text[:a] + new_pwd + new_text[b:]
+                        offset += len(new_pwd) - len(code_m.group(1))
+        else:
+            # 转存失败：把原链接替换成「转存失败」字样。
+            # 绝不能保留别人的原链接 —— 那样发出去等于替原作者导流，
+            # 而且用户根本看不出哪条没成功。
+            idx = new_text.find(original_url)
+            if idx >= 0:
+                tail_end = idx + len(original_url)
+                # 连带删掉紧随其后的「提取码: xxxx」，否则会留下悬空的提取码
+                after = new_text[tail_end:tail_end + 40]
+                code_m = CODE_PATTERN.search(after)
+                if code_m:
+                    tail_end += code_m.end()
+                    # 吞掉提取码后面多余的空白
+                    while tail_end < len(new_text) and new_text[tail_end] in " \t":
+                        tail_end += 1
+                replaced_len = tail_end - idx
+                new_text = new_text[:idx] + "转存失败" + new_text[tail_end:]
+                offset += len("转存失败") - replaced_len
+                log_print(f"链接已替换为「转存失败」: {original_url[:50]}", "WARNING")
 
         results.append({
             "index": i + 1,
@@ -254,6 +412,7 @@ async def run_from_text(text, save_results=False, push_wechat=False):
             "new_url": new_url,
             "title": title,
             "origin_title": origin_title,
+            "display_title": _pick_display_title(origin_title, title, i + 1),
             "size": size,
             "status": "success" if new_url else "error",
             "message": error_msg,
@@ -282,27 +441,16 @@ async def run_from_text(text, save_results=False, push_wechat=False):
 
     wechat_result = None
     if push_wechat and success_count > 0:
-        from core.notifier import send_wechat_notification
         import requests as _requests
         webhook_url = config.get("wechat", {}).get("webhook_url", "")
         if webhook_url:
-            shares = []
-            for r in results:
-                if r["new_url"]:
-                    # 标题优先用原文标题（与用户看到的文案一致）；
-                    # 原文标题取不到时回退到分享返回的内部标题
-                    note = (r.get("origin_title") or r.get("title")
-                            or f"资源{r.get('index','')}")
-                    shares.append({
-                        "note": note,
-                        "share_url": r["new_url"],
-                    })
-            send_wechat_notification(webhook_url, shares, kw="文本替换")
-
-            header_msg = "===== 替换后完整文本 ====="
+            # 只发一条：替换后的完整文案（不带任何标题头），供直接复制转发。
+            # 2026-10-18 应用户要求：去掉摘要卡片和「替换后完整文本」头部，
+            # 之前发两条（摘要 + 全文）看起来像重复推送。
+            full_text = new_text
             max_len = 3800
-            full_text = header_msg + "\n\n" + new_text
             chunks = [full_text[i:i + max_len] for i in range(0, len(full_text), max_len)]
+            ok_chunks = 0
             for ci, chunk in enumerate(chunks):
                 if len(chunks) > 1:
                     chunk = f"[ {ci+1}/{len(chunks)} ]\n\n" + chunk
@@ -312,10 +460,11 @@ async def run_from_text(text, save_results=False, push_wechat=False):
                         json={"msgtype": "text", "text": {"content": chunk.strip()}},
                         timeout=10,
                     )
+                    ok_chunks += 1
                     log_print(f"企业微信推送分片 {ci+1}/{len(chunks)} 成功", "SUCCESS")
                 except Exception as e:
                     log_print(f"企业微信推送分片 {ci+1} 失败: {e}", "ERROR")
-            wechat_result = {"success": True, "chunks": len(chunks)}
+            wechat_result = {"success": ok_chunks > 0, "chunks": len(chunks)}
         else:
             log_print("未配置 webhook_url，跳过企业微信推送", "WARNING")
 
@@ -328,12 +477,12 @@ async def run_from_text(text, save_results=False, push_wechat=False):
             for r in results:
                 if r["status"] == "success" and r.get("new_url"):
                     feishu_items.append({
-                        "name": (r.get("origin_title") or r.get("title")
-                                 or f"{r.get('platform','?')}_{r.get('index','?')}"),
+                        # 资源名称 = 转存成功时显示的名称（分享接口返回的 title）
+                        "name": r.get("display_title") or f"资源{r.get('index','?')}",
                         "url": r["new_url"],
                         "size": r.get("size", ""),
                         "tag": r.get("platform", ""),
-                        "search": r.get("title") or "",
+                        "search": r.get("display_title") or "",
                         "update_time": time.strftime("%Y-%m-%d"),
                     })
             if feishu_items:

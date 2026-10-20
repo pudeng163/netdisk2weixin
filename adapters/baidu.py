@@ -103,8 +103,18 @@ class Network:
 
     def verify_pass_code(self, link_url, pass_code):
         url = f"{BASE_URL}/share/verify"
+        # 旧代码写死 link_url[25:48]，只适用于 /s/1 开头、恰好 23 位的老式短链。
+        # 带 "-" 的新短链（如 /s/13smUAr-NQ4gmyxubqbQSdQ）会被截断，导致 surl 无效。
+        # 改为从 /s/ 之后取到结尾或查询参数之前。
+        m = re.search(r"/s/([^?&\s]+)", link_url)
+        surl = m.group(1) if m else link_url[25:48]
+        # 百度短链 /s/1XXXXXXXX 里的 "1" 是版本前缀，surl 参数要去掉它。
+        # 老代码 link_url[25:48] 恰好从 "1" 之后开始截，等价于去掉前缀，
+        # 但它按固定长度截，遇到带 "-" 的短链就会截错。
+        if surl.startswith("1"):
+            surl = surl[1:]
         params = {
-            "surl": link_url[25:48], "bdstoken": self.bdstoken,
+            "surl": surl, "bdstoken": self.bdstoken,
             "t": str(int(round(time.time() * 1000))),
             "channel": "chunlei", "web": "1", "clienttype": "0",
         }
@@ -189,8 +199,13 @@ def generate_code():
 
 
 def run(count=None, kw=None, include=None, exclude=None, preview_only=False, force=False,
-        selected_items=None, platform_cfg=None):
-    """百度网盘转存分享主流程（统一接口）。"""
+        selected_items=None, platform_cfg=None, notify=True):
+    """百度网盘转存分享主流程（统一接口）。
+
+    Args:
+        notify: 是否发送企业微信汇总通知。文本替换路径（core.text_replacer）
+                自己会推送最终文案，这里必须传 False，否则一次转存会发两条消息。
+    """
     config = load_config()
     baidu = config["baidu"]
     cookie = baidu.get("cookie", "")
@@ -198,7 +213,7 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
         count = baidu.get("count") or config["count"]
     target_folder = baidu.get("target_folder") or config["target_folder"]
     expire_hours = config.get("cache_expire_hours", 24)
-    webhook_url = config.get("wechat", {}).get("webhook_url", "")
+    webhook_url = config.get("wechat", {}).get("webhook_url", "") if notify else ""
 
     if not cookie:
         log_print("错误：请配置百度网盘 COOKIE", "ERROR")
@@ -263,12 +278,28 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
                 network.headers["Cookie"] = update_cookie(bdclnd, network.headers["Cookie"])
 
             response = network.get_transfer_params(parsed_url)
+            # 死链 / 被取消的分享：verify_pass_code 可能仍返回 bdclnd，
+            # 但分享页标题会是"百度网盘-链接不存在"，此时页面里没有 fs_id。
+            # 不单独识别的话，会误报成"解析链接失败"，让人以为是代码问题。
+            if "链接不存在" in response or "你访问的页面不存在" in response:
+                log_print(f"链接已失效（分享不存在或已取消）：{url}", "WARNING")
+                continue
             parsed = parse_response(response)
             if not isinstance(parsed, list):
                 log_print(f"解析链接失败：{ERROR_CODES.get(parsed, parsed)}", "WARNING")
                 continue
 
             transfer_result = network.transfer_file(parsed, target_folder)
+            # 同名冲突有两个错误码：-8 和 4（见 ERROR_CODES）。
+            # 处理方式：不再折腾新目录，直接拿网盘里已有的同名条目去创建分享。
+            # 理由：同名说明这个资源之前已经转存过，内容就在自己网盘里，
+            # 重新转存既占空间又可能被风控，直接分享已有的最稳。
+            reused_existing = False
+            if transfer_result in (-8, 4):
+                log_print(f"目录中已有同名文件，直接分享已有条目：{note}", "INFO")
+                reused_existing = True
+                transfer_result = 0
+
             if transfer_result != 0:
                 log_print(f"转存失败：{ERROR_CODES.get(transfer_result, transfer_result)}", "WARNING")
                 continue
@@ -278,6 +309,8 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
 
             dir_list = network.get_dir_list(f"/{target_folder}")
             if not isinstance(dir_list, list):
+                log_print(f"无法列出目录 /{target_folder}（errno={dir_list}），"
+                          f"跳过分享：{note}", "WARNING")
                 continue
 
             share_url = None
@@ -293,8 +326,11 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
                     break
 
             if share_url:
-                results.append({"note": note, "share_url": share_url})
-                log_print(f"分享成功：{note} -> {share_url}", "SUCCESS")
+                results.append({"note": note, "share_url": share_url,
+                                "file_name": file_name,
+                                "reused": reused_existing})
+                tag = "（复用已有文件）" if reused_existing else ""
+                log_print(f"分享成功{tag}：{note} -> {share_url}", "SUCCESS")
             else:
                 log_print(f"创建分享链接失败：{note}", "WARNING")
 

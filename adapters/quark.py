@@ -20,9 +20,15 @@ from typing import Union, Dict, Any, List, Tuple
 import httpx
 
 from core import cache
+from core import pansou_check
 from core.config import (load_config, get_kuake_cli, get_yinliu_pdf,
+<<<<<<< HEAD
                          get_yinliu_files, resolve_path, CACHE_DIR,
                          SHARE_DIR, LOG_DIR)
+=======
+                         resolve_path, CACHE_DIR, SHARE_DIR, LOG_DIR,
+                         is_check_links_enabled)
+>>>>>>> e4fb7ff1f606566358dfbe04a902afb748bf9c53
 from core.logger import log_print
 from core.notifier import send_wechat_notification
 
@@ -52,6 +58,68 @@ def _save_cursor(pos: int):
             f.write(str(max(0, pos)))
     except Exception as e:
         log_print(f"写入游标失败: {e}", "WARNING")
+
+
+def _collect_valid_items(pool, start, need, check_enabled, max_scan=None):
+    """从游标位置起，顺序收集 need 条「有效」资源。
+
+    预检开启时会跳过 bad 链接继续往后取，直到凑够 need 条或绕完整个池子。
+    采用**分批前瞻**：先取一批候选送去检测，够用就停，避免为一个 count=6
+    的推送把 267 条全检一遍（那样会白白打满上游请求）。
+
+    Returns:
+        (selected, dead_items) —— 选中的条目、检测为失效的条目
+    """
+    total = len(pool)
+    if total == 0 or need <= 0:
+        return [], []
+
+    selected = []
+    dead_items = []
+    scanned = 0
+    seen_idx = set()
+    limit = total if max_scan is None else min(total, max_scan)
+
+    # 前瞻窗口自适应扩容：资源池里「XX合集」类条目死链率能到 80%+，
+    # 固定窗口经常要跑好几轮。这里从 need 的 3 倍起步，每轮不够就翻倍，
+    # 既避免小 count 时扫全池，又能在高死链率下快速凑够。
+    window = max(need * 3, need + 8)
+    window = min(window, limit)
+
+    while len(selected) < need and scanned < limit:
+        batch = []
+        for i in range(window):
+            pos = scanned + i
+            if pos >= limit:
+                break
+            idx = (start + pos) % total
+            if idx in seen_idx:
+                continue
+            seen_idx.add(idx)
+            batch.append(pool[idx])
+        if not batch:
+            break
+
+        if check_enabled:
+            urls = [(it.get("url") or "").strip() for it in batch]
+            states = pansou_check.check_links(urls)
+            for it in batch:
+                u = (it.get("url") or "").strip()
+                st = states.get(u, (pansou_check.STATE_UNCERTAIN, ""))[0]
+                if not pansou_check.is_usable(st):
+                    dead_items.append(it)
+                    continue
+                if len(selected) < need:
+                    selected.append(it)
+        else:
+            for it in batch:
+                if len(selected) < need:
+                    selected.append(it)
+
+        scanned += len(batch)
+        window = min(window * 2, limit)   # 本轮不够 → 下一轮翻倍
+
+    return selected, dead_items
 
 # 需要保留的全局（供登录等使用）
 _quark_cookies_env = ""
@@ -571,6 +639,29 @@ def _kuake_delete(kuake_cli, path):
         return False
 
 
+def _kuake_rename(kuake_cli, path, new_name):
+    """重命名夸克网盘某文件/目录，返回 True 表示成功。"""
+    if not kuake_cli or not os.path.exists(kuake_cli):
+        log_print(f"kuake 可执行文件不存在，无法重命名: {kuake_cli}", "WARNING")
+        return False
+    try:
+        result = subprocess.run(
+            [kuake_cli, "rename", path, new_name], capture_output=True, timeout=30,
+            encoding="utf-8", errors="replace",
+        )
+        text = result.stdout.strip()
+        ok = result.returncode == 0 and ("success" in text.lower() or "成功" in text)
+        if not ok:
+            log_print(f"kuake rename 失败: {path} | {text[:200]}", "WARNING")
+        return ok
+    except subprocess.TimeoutExpired:
+        log_print(f"kuake rename 超时: {path}", "WARNING")
+        return False
+    except Exception as e:
+        log_print(f"kuake rename 异常: {e}", "WARNING")
+        return False
+
+
 def _resolve_top_fids_to_paths(kuake_cli, folder_fid, top_fids):
     """把转存返回的 top_fids 列表解析成对应的网盘路径。
 
@@ -673,26 +764,84 @@ def clean_yinliu_after_save(kuake_cli, top_paths, filter_cfg, excludes=None):
     Returns:
         {"deleted": [...], "total": int}
     """
-    from core.yinliu_filter import match_yinliu
+    from core.yinliu_filter import match_yinliu, rewrite_contact
 
     if not kuake_cli or not os.path.exists(kuake_cli):
         log_print("kuake CLI 不可用，跳过引流清理", "WARNING")
-        return {"deleted": [], "total": 0}
+        return {"deleted": [], "renamed": [], "total": 0}
 
     keywords = filter_cfg.get("keywords") or None
     extensions = filter_cfg.get("extensions") or None
     max_bytes = filter_cfg.get("max_small_file_bytes")
+    my_contact = filter_cfg.get("my_contact")
 
     all_excludes = list(filter_cfg.get("excludes") or [])
     if excludes:
         all_excludes.extend(excludes)
 
     if not top_paths:
-        return {"deleted": [], "total": 0}
+        return {"deleted": [], "renamed": [], "total": 0}
 
     deleted = []
+    renamed = []
     checked = 0
     records = []
+
+    def _excluded(name):
+        base = os.path.basename(name)
+        for excl in all_excludes:
+            if excl and excl in base:
+                return True
+        return False
+
+    def _handle(path, size, is_dir=False):
+        """处理单个条目。
+
+        顺序很关键：
+          ① 名字里带别人联系方式 → 改名换成自己的号，**不删**
+             （正课文件常挂「【更多好课加微信xxx】」尾巴，删了等于删课）
+          ② 其余再按关键词判引流 → 删
+        """
+        if _excluded(path):
+            records.append({"path": path, "size": size, "is_yinliu": False,
+                            "deleted": False, "reason": "", "is_dir": is_dir})
+            return
+
+        new_name = rewrite_contact(path, my_contact)
+        if new_name:
+            log_print(f"发现他人联系方式: {os.path.basename(path)}", "INFO")
+            if _kuake_rename(kuake_cli, path, new_name):
+                renamed.append(path)
+                log_print(f"已改名: {os.path.basename(path)} → {new_name}", "SUCCESS")
+                records.append({"path": path, "size": size, "is_yinliu": False,
+                                "deleted": False, "reason": f"联系方式改写为 {new_name}",
+                                "is_dir": is_dir})
+                return
+            log_print(f"改名失败，继续按引流判定: {path}", "WARNING")
+
+        is_yl, reason = match_yinliu(
+            path, size,
+            keywords=keywords or None,
+            extensions=extensions or None,
+            max_small_file_bytes=max_bytes,
+            extra_excludes=all_excludes or None,
+            aggressive_ext_check=filter_cfg.get("aggressive_ext_check", False),
+        )
+
+        if is_yl:
+            log_print(f"发现引流文件: {path} | {reason}", "INFO")
+            ok = _kuake_delete(kuake_cli, path)
+            if ok:
+                deleted.append(path)
+                log_print(f"已删除: {path}", "SUCCESS")
+            else:
+                log_print(f"删除失败: {path}", "WARNING")
+            records.append({"path": path, "size": size, "is_yinliu": True,
+                            "deleted": bool(ok), "reason": reason,
+                            "is_dir": False})
+        else:
+            records.append({"path": path, "size": size, "is_yinliu": False,
+                            "deleted": False, "reason": "", "is_dir": is_dir})
 
     for top_path in top_paths:
         info = _kuake_info(kuake_cli, top_path)
@@ -700,29 +849,7 @@ def clean_yinliu_after_save(kuake_cli, top_paths, filter_cfg, excludes=None):
 
         if not is_dir and info:
             checked += 1
-            size = info.get("size", 0)
-            is_yl, reason = match_yinliu(
-                top_path, size,
-                keywords=keywords or None,
-                extensions=extensions or None,
-                max_small_file_bytes=max_bytes,
-                extra_excludes=all_excludes or None,
-                aggressive_ext_check=filter_cfg.get("aggressive_ext_check", False),
-            )
-            if is_yl:
-                log_print(f"发现引流文件: {top_path} | {reason}", "INFO")
-                ok = _kuake_delete(kuake_cli, top_path)
-                if ok:
-                    deleted.append(top_path)
-                    log_print(f"已删除: {top_path}", "SUCCESS")
-                else:
-                    log_print(f"删除失败: {top_path}", "WARNING")
-                records.append({"path": top_path, "size": size, "is_yinliu": True,
-                                "deleted": bool(ok), "reason": reason,
-                                "is_dir": False})
-            else:
-                records.append({"path": top_path, "size": size, "is_yinliu": False,
-                                "deleted": False, "reason": "", "is_dir": False})
+            _handle(top_path, info.get("size", 0), is_dir=False)
             continue
 
         queue = [top_path]
@@ -733,37 +860,17 @@ def clean_yinliu_after_save(kuake_cli, top_paths, filter_cfg, excludes=None):
                 checked += 1
                 path = entry.get("path", "")
                 size = entry.get("size", 0)
+                entry_is_dir = bool(entry.get("dir"))
+                _handle(path, size, is_dir=entry_is_dir)
+                # 改名/未删的目录继续下钻；已删的不用再进
+                if entry_is_dir and path not in deleted:
+                    queue.append(path)
 
-                is_yl, reason = match_yinliu(
-                    path, size,
-                    keywords=keywords or None,
-                    extensions=extensions or None,
-                    max_small_file_bytes=max_bytes,
-                    extra_excludes=all_excludes or None,
-                    aggressive_ext_check=filter_cfg.get("aggressive_ext_check", False),
-                )
-
-                if is_yl:
-                    log_print(f"发现引流文件: {path} | {reason}", "INFO")
-                    ok = _kuake_delete(kuake_cli, path)
-                    if ok:
-                        deleted.append(path)
-                        log_print(f"已删除: {path}", "SUCCESS")
-                    else:
-                        log_print(f"删除失败: {path}", "WARNING")
-                    records.append({"path": path, "size": size, "is_yinliu": True,
-                                    "deleted": bool(ok), "reason": reason,
-                                    "is_dir": False})
-                else:
-                    records.append({"path": path, "size": size, "is_yinliu": False,
-                                    "deleted": False, "reason": "",
-                                    "is_dir": bool(entry.get("dir"))})
-                    if entry.get("dir"):
-                        queue.append(path)
-
-    log_print(f"引流清理完成：检查 {checked} 个，删除 {len(deleted)} 个", "INFO")
-    _write_clean_record(records, {"checked": checked, "deleted": len(deleted)})
-    return {"deleted": deleted, "total": checked}
+    log_print(f"引流清理完成：检查 {checked} 个，删除 {len(deleted)} 个，"
+              f"改写联系方式 {len(renamed)} 个", "INFO")
+    _write_clean_record(records, {"checked": checked, "deleted": len(deleted),
+                                  "renamed": len(renamed)})
+    return {"deleted": deleted, "renamed": renamed, "total": checked}
 
 
 # ---------------------------------------------------------------------------
@@ -773,9 +880,14 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
                                 quark_cookie, kw=None,
                                 include=None, exclude=None, preview_only=False,
                                 selected_items=None, folder_fid="0",
+<<<<<<< HEAD
                                 force=False, filter_cfg=None):
     # 引流文件列表：pdf_path 传 str（兼容旧调用）或 list
     yinliu_files = [pdf_path] if isinstance(pdf_path, str) else list(pdf_path or [])
+=======
+                                force=False, filter_cfg=None,
+                                check_links_arg=None):
+>>>>>>> e4fb7ff1f606566358dfbe04a902afb748bf9c53
     manager = QuarkPanFileManager(cookie=quark_cookie)
 
     folder_path = _resolve_fid_to_path(kuake_cli, folder_fid)
@@ -802,25 +914,60 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
                       if not _is_pushed(i, pushed_titles, pushed_urls, pushed_normed)]
         log_print(f"过滤已推送资源 {before - len(quark_data)} 个，剩余 {len(quark_data)} 个", "INFO")
 
-    if len(quark_data) < count:
-        log_print(f"链接数量不足，调整选取数量为 {len(quark_data)}", "WARNING")
-        count = len(quark_data)
+    # ── 指定条目模式（--selected）：直接对这些条目预检，不走游标 ──────────
+    if selected_items is not None:
+        selected = [it for it in quark_data if (it.get("url") or "").strip()]
+        dead_hits = []
+        if is_check_links_enabled() and check_links_arg is not False and selected:
+            log_print(f"对指定的 {len(selected)} 条做有效性预检...", "INFO")
+            urls = [(it.get("url") or "").strip() for it in selected]
+            states = pansou_check.check_links(urls)
+            alive, dead_hits = [], []
+            for it in selected:
+                u = (it.get("url") or "").strip()
+                st = states.get(u, (pansou_check.STATE_UNCERTAIN, ""))[0]
+                (alive if pansou_check.is_usable(st) else dead_hits).append(it)
+            if dead_hits:
+                for it in dead_hits:
+                    st, summary = states.get((it.get("url") or "").strip(),
+                                             (pansou_check.STATE_BAD, ""))
+                    log_print(f"  跳过失效链接：{it.get('note', '')[:40]}（{summary}）", "WARNING")
+                pansou_check.record_dead_links(dead_hits)
+            if not alive:
+                log_print("指定的条目经预检后全部失效", "ERROR")
+                return {"code": 404, "message": "指定的条目经预检后全部失效",
+                        "total_selected": 0, "save_success_count": 0,
+                        "share_success_count": 0, "share_results": [],
+                        "preview": preview_only, "items": None,
+                        "dead_count": len(dead_hits)}
+            selected = alive
+        count = len(selected)
 
-    # ── 顺序游标推进（替代 random.sample）─────────────────────────────
-    cursor = _load_cursor()
-    total = len(quark_data)
+    else:
+        if len(quark_data) < count:
+            log_print(f"链接数量不足，调整选取数量为 {len(quark_data)}", "WARNING")
+            count = len(quark_data)
 
-    if cursor >= total:
-        log_print(f"游标 {cursor} 超出可用范围（共 {total} 条），重置为 0", "INFO")
-        cursor = 0
+        # ── 顺序游标推进 + 有效性预检（死链跳过、顺延取满）──────────────
+        # 先剔除历史死链，避免每次都撞同一条
+        known_dead = pansou_check.load_dead_links()
+        if known_dead:
+            before = len(quark_data)
+            quark_data = pansou_check.filter_dead(quark_data, known_dead)
+            if before != len(quark_data):
+                log_print(f"按历史死链记录剔除 {before - len(quark_data)} 条，"
+                          f"剩余 {len(quark_data)} 条", "INFO")
 
-    log_print(f"顺序推送：游标从第 {cursor + 1} 条开始，取 {count} 条（池内共 {total} 条）", "INFO")
+        cursor = _load_cursor()
+        total = len(quark_data)
 
-    selected = []
-    for i in range(count):
-        idx = (cursor + i) % total
-        selected.append(quark_data[idx])
+        if total == 0:
+            log_print("资源池为空（可能全部为死链）", "ERROR")
+            return {"code": 404, "message": "资源池为空", "total_selected": 0,
+                    "save_success_count": 0, "share_success_count": 0,
+                    "share_results": [], "preview": preview_only, "items": None}
 
+<<<<<<< HEAD
     next_cursor = (cursor + count) % total
     if preview_only:
         # 预览是只读操作：不写游标，保证「预览 → 直接正式推」推走的是同一批
@@ -829,14 +976,54 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
     else:
         _save_cursor(next_cursor)
         log_print(f"游标已更新：{cursor} → {next_cursor}（下次从第 {next_cursor + 1} 条开始）", "INFO")
+=======
+        if cursor >= total:
+            log_print(f"游标 {cursor} 超出可用范围（共 {total} 条），重置为 0", "INFO")
+            cursor = 0
+
+        check_enabled = is_check_links_enabled() and check_links_arg is not False
+        log_print(f"顺序推送：游标从第 {cursor + 1} 条开始，取 {count} 条（池内共 {total} 条）"
+                  f"{'，已启用有效性预检' if check_enabled else '，未启用有效性预检'}", "INFO")
+
+        selected, dead_hits = _collect_valid_items(
+            quark_data, cursor, count, check_enabled)
+        consumed = len(selected) + len(dead_hits)
+
+        if not selected:
+            log_print("预检后没有可用资源（全部为死链）", "ERROR")
+            return {"code": 404, "message": "预检后无可用资源，资源池可能已大面积失效",
+                    "total_selected": 0, "save_success_count": 0,
+                    "share_success_count": 0, "share_results": [],
+                    "preview": preview_only, "items": None}
+
+        if len(selected) < count:
+            log_print(f"预检后仅凑够 {len(selected)} 条可用资源（目标 {count} 条），按实际数量推送",
+                      "WARNING")
+
+        # 死链落盘，下次加载直接排除
+        if dead_hits:
+            pansou_check.record_dead_links(dead_hits)
+
+        # 游标只推进到「实际消费过」的位置，死链也算消费（已记录，不会重复推）
+        next_cursor = (cursor + consumed) % total
+        log_print(f"游标已更新：{cursor} → {next_cursor}（消费 {consumed} 条，"
+                  f"其中死链 {len(dead_hits)} 条；下次从第 {next_cursor + 1} 条开始）", "INFO")
+
+        # 预览模式不落游标：预览只是看看，不该吃掉正式名额
+        if preview_only:
+            log_print("预览模式：游标未变更", "INFO")
+        else:
+            _save_cursor(next_cursor)
+>>>>>>> e4fb7ff1f606566358dfbe04a902afb748bf9c53
 
     if preview_only:
         items = [{"index": i + 1, "note": it.get("note", "无标题"),
                   "url": it["url"]} for i, it in enumerate(selected)]
         return {"code": 200, "message": "预览成功", "preview": True,
-                "items": items, "total_selected": count,
+                "items": items, "total_selected": len(selected),
                 "total_found": len(quark_data), "save_success_count": 0,
-                "share_success_count": 0, "share_results": []}
+                "share_success_count": 0, "share_results": [],
+                "dead_count": len(dead_hits)}
 
     save_results = []
     os.makedirs(SHARE_DIR, exist_ok=True)
@@ -966,7 +1153,7 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
     return {
         "code": 200,
         "message": "批量转存分享操作完成",
-        "total_selected": count,
+        "total_selected": len(selected),
         "save_success_count": success_count,
         "share_success_count": share_success_count,
         "share_results": share_results,
@@ -974,12 +1161,19 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
         "feishu_result": feishu_result,
         "preview": preview_only,
         "items": None,
+        "dead_count": len(dead_hits),
     }
 
 
 def run(count=None, kw=None, include=None, exclude=None, preview_only=False, force=False,
-        selected_items=None, platform_cfg=None):
-    """夸克网盘转存分享主流程（统一接口，同步封装）。"""
+        selected_items=None, platform_cfg=None, check_links=None):
+    """夸克网盘转存分享主流程（统一接口，同步封装）。
+
+    Args:
+        check_links: 转存前是否用 PanSou 预检链接有效性。
+            None=跟随 .env 的 PANSOU_CHECK_ENABLED（默认开启）；
+            True=强制开启；False=强制关闭（CLI 的 --no-check-links）。
+    """
     config = load_config()
     quark = config["quark"]
     quark_cookie = quark.get("cookie", "")
@@ -1008,4 +1202,5 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
         kw=kw, include=include, exclude=exclude, preview_only=preview_only,
         selected_items=selected_items, folder_fid=folder_fid,
         force=force, filter_cfg=filter_cfg,
+        check_links_arg=check_links,
     ))

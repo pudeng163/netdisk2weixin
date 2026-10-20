@@ -1,9 +1,17 @@
 # 网盘拉新统一转存工具
 
+> 给大家推荐一个比看抖音还能赚钱的方法，就是资源分享，首先需要注册网盘拉新平台，https://dcn8qexvg13r.feishu.cn/wiki/GCUawXLE2iW09JkJM6OcbPnqnte
+
 把原来的「百度网盘转存」和「夸克网盘转存」两个独立项目，合并为一个统一项目。
 一份配置、一个入口、统一的企业微信推送和 Web 管理界面，百度 / 夸克可分别或一起跑。
 
 搜索源采用 **PanSou 自建后端**（`http://localhost:8888`），22 个插件源 + 9 个 TG 频道，不依赖外部被封的聚合站，稳定可控。
+
+**推送效果**（企业微信实拍）：
+
+<p align="center">
+  <img src="docs/images/wechat-push-effect.jpg" alt="企业微信推送效果" width="360">
+</p>
 
 ---
 
@@ -280,7 +288,12 @@ python main.py quark                       # 只跑夸克，默认 COUNT
 python main.py quark --count 10            # 转存 10 个
 python main.py quark --include 小学         # 本地关键词过滤
 python main.py quark --force               # 强制跳过缓存
+<<<<<<< HEAD
 python main.py quark --preview             # 只预览不转存（不推进游标，预览后可直接正式推同一批）
+=======
+python main.py quark --preview             # 只预览不转存
+python main.py quark --no-check-links       # 跳过链接有效性预检（提速）
+>>>>>>> e4fb7ff1f606566358dfbe04a902afb748bf9c53
 python main.py baidu                       # 只跑百度
 python main.py all                         # 百度 + 夸克 一起跑
 
@@ -456,6 +469,7 @@ python tools/list_resources.py --from-pool
 
 ---
 
+<<<<<<< HEAD
 ## 3.10 盘内直推模式（share_local.py / 联动分享.py）
 
 **网盘容量已满、无法再转存时**，直接分享网盘里已有的资源（不转存、不占容量、秒级完成）。
@@ -519,6 +533,96 @@ python 联动分享.py --names "田连元评书大合集"   # 指定名称
 ---
 
 ## 3.11 Skill 功能（Trae AI 自动调用）
+=======
+## 3.10 链接有效性预检（默认开启）
+
+**解决什么问题**：资源池是爬来的，链接随时可能被网盘方封禁。不预检的话，顺序游标
+会把死链当成正常条目消耗掉——转存失败、该条作废，但**游标已经前进**，下一次推送
+还要再等一整圈才轮得到后面的好资源。
+
+**实际数据**：当前资源池里「XX合集」类条目（付费文章合集、小说合集等）死链率高达
+**80%+**。一次 count=6 的推送，实测需要扫过 49 条才能凑够 6 条可用。
+
+### 工作方式
+
+```
+游标位置 → 取一批候选 → POST /api/check/links → 跳过 bad，保留 ok/uncertain
+         → 不够就翻倍扩大窗口继续取 → 凑够 count 或绕完整个池
+```
+
+采用 **PanSou 自带的检测接口**（`POST /api/check/links`），无需自己实现网盘校验。
+
+### 三态语义（重要）
+
+| 状态 | 含义 | 处理 |
+|------|------|------|
+| `ok` | 链接有效 | ✅ 转存 |
+| `bad` | 确实失效（分享不存在/已封禁/内容为空） | ⏭ 跳过，记录到死链文件 |
+| `uncertain` | **无法判定**，典型原因是被限流 | ✅ **放行** |
+
+> **为什么 uncertain 要放行**：上游返回的是「你请求太频繁」而不是「这个分享不存在」。
+> 如果把它当 bad 丢掉，网络抖动或限流时会误杀大量好链接。宁放行一条可能失效的，
+> 不错杀一条有效的。
+
+### 死链记忆
+
+失效链接写入 `data/share/dead_links.txt`（格式 `note | url`），下次加载资源池时
+**直接排除**，不会每次重试都撞同一条。
+
+### 降级策略（fail-open）
+
+预检是「锦上添花」，不能因为 PanSou 没起就把主流程搞挂：
+
+| 情况 | 行为 |
+|------|------|
+| PanSou 未启动 / 端口不通 | 记 warning，**放行全部链接**，正常推送 |
+| 请求超时 | 同上 |
+| 返回结构异常 | 同上 |
+
+**没有任何情况下预检会中断推送流程。**
+
+### 开关
+
+```bash
+python main.py quark --no-check-links   # 本次跳过预检（速度优先）
+python main.py quark --check-links      # 本次强制开启（覆盖 .env）
+```
+
+`.env` 全局开关：
+
+```ini
+PANSOU_CHECK_ENABLED=true      # 设为 false 全局关闭
+# PANSOU_CHECK_TIMEOUT=30      # 单次检测超时（秒）
+# PANSOU_CHECK_BATCH=50        # 单次请求最多带几条（PanSou 侧有上限）
+```
+
+### 缓存
+
+检测结果缓存在 `data/cache/link_check.json`，避免同一链接反复请求上游：
+
+| 状态 | 缓存时长 |
+|------|----------|
+| `ok` | 6 小时 |
+| `bad` | 24 小时（死链几乎不会复活） |
+| `uncertain` | 5 分钟（限流很快会恢复） |
+
+---
+
+## 3.11 顺序推送游标
+
+`data/share/push_cursor.txt` 记录上次推到资源池的第几条（0-based），保证推送
+**按顺序覆盖**而不是随机重复。
+
+**游标推进规则**：
+
+- 游标按**实际消费**的条数前进（选中的 + 跳过的死链）
+- **预览模式（`--preview`）不写游标** —— 预览只是看看，不该吃掉正式名额
+- 游标超出池子大小时自动重置为 0
+
+---
+
+## 3.12 Skill 功能（Trae AI 自动调用）
+>>>>>>> e4fb7ff1f606566358dfbe04a902afb748bf9c53
 
 项目内置 3 个 Skill（`.trae/skills/`），在 Trae 里直接用自然语言就能触发。
 
@@ -630,6 +734,7 @@ netdisk2weixin/
 │   ├── yinliu_filter.py #   引流文件自动清理（保守/激进两种模式）
 │   ├── platform_probe.py#   平台探测（Cookie 有效性、API 可达性预检）
 │   ├── text_replacer.py #   文本替换模式（识别文本里的网盘链接→转存→替换→推送）
+│   ├── pansou_check.py  #   链接有效性预检（调 PanSou /api/check/links，三态+缓存+死链记忆）
 │   └── pansou_launcher.py # PanSou 启动/停止/状态/重启 + 自动选二进制
 │
 ├── tools/               # 辅助工具（独立运行的脚本）
@@ -664,13 +769,15 @@ netdisk2weixin/
 │   ├── go.mod / go.sum  #   Go 模块依赖
 │   └── ...              #   PanSou 源码（api/ plugin/ service/ model/ util/）
 │
+├── docs/images/         # README 配图（推送效果截图等）
 ├── tests/               # 单元测试
-│   └── test_platform_resolve.py
+│   ├── test_platform_resolve.py  # 平台→二进制自动识别
+│   └── test_link_check.py        # 链接预检（三态/缓存/降级/死链/游标跳过）
 │
 └── data/                # 运行时数据（自动生成，已 gitignore）
-    ├── cache/           #   API 缓存
+    ├── cache/           #   API 缓存 + link_check.json（链接检测结果缓存）
     ├── logs/            #   运行日志（含 pansou.log、yinliu_clean_日期.txt）
-    ├── share/           #   推送历史记录（share_url_total.txt，标题 | url | PICKED/DONE）
+    ├── share/           #   推送历史（share_url_total.txt、dead_links.txt、push_cursor.txt）
     └── pansou.pid       #   PanSou 进程号（供 stop 使用）
 ```
 
@@ -716,6 +823,25 @@ python tools/share_local.py --random 6
 
 **Q：API 一直超时 / 400？**
 重试机制会自动跑 3 次每次等 6 秒。全部失败后会回退到缓存（如果有）。如果是 PanSou 自建后端返回的 400，多半是插件源临时抽风，换个关键词或等几分钟再试。
+
+**Q：推送时日志一直刷「链接预检完成：失效 N」？**
+正常现象。资源池里「XX合集」类条目死链率能到 80%+，预检在帮你把死链挡在转存之前。
+凑够 count 条有效资源是正常的，会自动跳过并顺延。若想跳过预检直接按顺序取：
+```bash
+python main.py quark --no-check-links
+```
+注意这样做会把死链当正常条目消耗掉游标位置。
+
+**Q：预检会不会因为 PanSou 没启动而卡住 / 报错？**
+不会。预检是 **fail-open** 设计——PanSou 不可达、超时、返回异常时一律**放行全部链接**，
+只记一条 warning，主流程照常推送。诊断里能看到预检接口的连通状态：
+```bash
+python main.py diagnose    # 看 [链接预检] 一节
+```
+
+**Q：死链检测过了还会再推吗？**
+不会。失效链接会写入 `data/share/dead_links.txt`，下次加载资源池时直接排除。
+想清空重来就删掉这个文件。
 
 **Q：搜不到任何资源 / 返回空？**
 先跑诊断，它会一次性告诉你二进制、服务、插件是否都正常：

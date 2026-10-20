@@ -139,6 +139,35 @@ def main():
         print(f"  {_mark(False, warn=True)} 文件不存在    回退 PanSou API")
 
     print()
+
+    # ---- 链接预检 ----
+    print(_c("[链接预检]", CYAN))
+    from core.config import (is_check_links_enabled, get_pansou_check_url,
+                             get_check_timeout)
+    cl_enabled = is_check_links_enabled()
+    print(f"  预检开关       {'开启' if cl_enabled else _c('已关闭', YELLOW)}"
+          f"（.env 的 PANSOU_CHECK_ENABLED）")
+    print(f"  检测接口       {get_pansou_check_url()}")
+    print(f"  单次超时       {get_check_timeout():.0f}s")
+    if cl_enabled:
+        # 用一个必然失效的假链接探测接口连通性，不消耗真实资源
+        from core import pansou_check
+        ok, msg = pansou_check.probe_available()
+        if ok:
+            print(f"  {_mark(True)} 接口连通      {msg}")
+        else:
+            print(f"  {_mark(False, warn=True)} 接口不可用    {msg}")
+            print(f"    {_c('预检将自动降级为「全部放行」，不影响主流程', YELLOW)}")
+    dead = None
+    try:
+        from core import pansou_check as _pc
+        dead = _pc.load_dead_links()
+        print(f"  历史死链记录   {len(dead)} 条"
+              f"（{_pc.dead_links_file()}）")
+    except Exception:
+        pass
+
+    print()
     print(_c("=" * 68, CYAN))
     if fatal:
         print(_c("  结论：存在致命问题，请按上方提示修复", RED))
