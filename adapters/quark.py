@@ -22,13 +22,8 @@ import httpx
 from core import cache
 from core import pansou_check
 from core.config import (load_config, get_kuake_cli, get_yinliu_pdf,
-<<<<<<< HEAD
                          get_yinliu_files, resolve_path, CACHE_DIR,
-                         SHARE_DIR, LOG_DIR)
-=======
-                         resolve_path, CACHE_DIR, SHARE_DIR, LOG_DIR,
-                         is_check_links_enabled)
->>>>>>> e4fb7ff1f606566358dfbe04a902afb748bf9c53
+                         SHARE_DIR, LOG_DIR, is_check_links_enabled)
 from core.logger import log_print
 from core.notifier import send_wechat_notification
 
@@ -880,14 +875,10 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
                                 quark_cookie, kw=None,
                                 include=None, exclude=None, preview_only=False,
                                 selected_items=None, folder_fid="0",
-<<<<<<< HEAD
-                                force=False, filter_cfg=None):
-    # 引流文件列表：pdf_path 传 str（兼容旧调用）或 list
-    yinliu_files = [pdf_path] if isinstance(pdf_path, str) else list(pdf_path or [])
-=======
                                 force=False, filter_cfg=None,
                                 check_links_arg=None):
->>>>>>> e4fb7ff1f606566358dfbe04a902afb748bf9c53
+    # 引流文件列表：pdf_path 传 str（兼容旧调用）或 list
+    yinliu_files = [pdf_path] if isinstance(pdf_path, str) else list(pdf_path or [])
     manager = QuarkPanFileManager(cookie=quark_cookie)
 
     folder_path = _resolve_fid_to_path(kuake_cli, folder_fid)
@@ -967,16 +958,6 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
                     "save_success_count": 0, "share_success_count": 0,
                     "share_results": [], "preview": preview_only, "items": None}
 
-<<<<<<< HEAD
-    next_cursor = (cursor + count) % total
-    if preview_only:
-        # 预览是只读操作：不写游标，保证「预览 → 直接正式推」推走的是同一批
-        log_print(f"预览模式：游标保持 {cursor} 不变（正式推送将从第 {cursor + 1} 条起取 {count} 条）",
-                  "INFO")
-    else:
-        _save_cursor(next_cursor)
-        log_print(f"游标已更新：{cursor} → {next_cursor}（下次从第 {next_cursor + 1} 条开始）", "INFO")
-=======
         if cursor >= total:
             log_print(f"游标 {cursor} 超出可用范围（共 {total} 条），重置为 0", "INFO")
             cursor = 0
@@ -1014,7 +995,6 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
             log_print("预览模式：游标未变更", "INFO")
         else:
             _save_cursor(next_cursor)
->>>>>>> e4fb7ff1f606566358dfbe04a902afb748bf9c53
 
     if preview_only:
         items = [{"index": i + 1, "note": it.get("note", "无标题"),

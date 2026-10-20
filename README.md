@@ -288,12 +288,8 @@ python main.py quark                       # 只跑夸克，默认 COUNT
 python main.py quark --count 10            # 转存 10 个
 python main.py quark --include 小学         # 本地关键词过滤
 python main.py quark --force               # 强制跳过缓存
-<<<<<<< HEAD
 python main.py quark --preview             # 只预览不转存（不推进游标，预览后可直接正式推同一批）
-=======
-python main.py quark --preview             # 只预览不转存
 python main.py quark --no-check-links       # 跳过链接有效性预检（提速）
->>>>>>> e4fb7ff1f606566358dfbe04a902afb748bf9c53
 python main.py baidu                       # 只跑百度
 python main.py all                         # 百度 + 夸克 一起跑
 
@@ -469,7 +465,6 @@ python tools/list_resources.py --from-pool
 
 ---
 
-<<<<<<< HEAD
 ## 3.10 盘内直推模式（share_local.py / 联动分享.py）
 
 **网盘容量已满、无法再转存时**，直接分享网盘里已有的资源（不转存、不占容量、秒级完成）。
@@ -532,9 +527,7 @@ python 联动分享.py --names "田连元评书大合集"   # 指定名称
 
 ---
 
-## 3.11 Skill 功能（Trae AI 自动调用）
-=======
-## 3.10 链接有效性预检（默认开启）
+## 3.11 链接有效性预检（默认开启）
 
 **解决什么问题**：资源池是爬来的，链接随时可能被网盘方封禁。不预检的话，顺序游标
 会把死链当成正常条目消耗掉——转存失败、该条作废，但**游标已经前进**，下一次推送
@@ -608,7 +601,7 @@ PANSOU_CHECK_ENABLED=true      # 设为 false 全局关闭
 
 ---
 
-## 3.11 顺序推送游标
+## 3.12 顺序推送游标
 
 `data/share/push_cursor.txt` 记录上次推到资源池的第几条（0-based），保证推送
 **按顺序覆盖**而不是随机重复。
@@ -621,8 +614,7 @@ PANSOU_CHECK_ENABLED=true      # 设为 false 全局关闭
 
 ---
 
-## 3.12 Skill 功能（Trae AI 自动调用）
->>>>>>> e4fb7ff1f606566358dfbe04a902afb748bf9c53
+## 3.13 Skill 功能（Trae AI 自动调用）
 
 项目内置 3 个 Skill（`.trae/skills/`），在 Trae 里直接用自然语言就能触发。
 
