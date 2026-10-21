@@ -1,4 +1,4 @@
-name: Quark Auto Push
+name: 网盘联动分享定时推送
 
 on:
   schedule:
@@ -6,13 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       count:
-        description: '推送数量'
+        description: '随机推送数量（默认 6）'
         required: false
         default: '6'
-      exclude:
-        description: '排除关键词（空格分隔）'
-        required: false
-        default: '短剧'
 
 jobs:
   push:
@@ -25,27 +21,22 @@ jobs:
         shell: bash
         env:
           WECHAT_WEBHOOK_URL: ${{ secrets.WECHAT_WEBHOOK_URL }}
-          BAIDU_COOKIE: ${{ secrets.BAIDU_COOKIE }}
-          QUARK_COOKIE: ${{ secrets.QUARK_COOKIE }}
-          KUAKE_COOKIE: ${{ secrets.KUAKE_COOKIE }}
-          QUARK_FOLDER_FID: ${{ secrets.QUARK_FOLDER_FID }}
+          KUAKE_COOKIE_2: ${{ secrets.KUAKE_COOKIE_2 }}
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_WIKI_NODE_TOKEN: ${{ secrets.FEISHU_WIKI_NODE_TOKEN }}
+          FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}
         run: |
           cat > .env <<EOF
-          COUNT=${COUNT:-6}
-          CACHE_EXPIRE_HOURS=12
-          TARGET_FOLDER=下载
-          LOCAL_POOL_ENABLED=true
-          RESOURCE_POOL_FILE=资源池.json
           WECHAT_WEBHOOK_URL=${WECHAT_WEBHOOK_URL}
-          BAIDU_COOKIE=${BAIDU_COOKIE}
-          QUARK_COOKIE=${QUARK_COOKIE}
-          KUAKE_COOKIE=${KUAKE_COOKIE}
-          QUARK_FOLDER_FID=${QUARK_FOLDER_FID}
-          QUARK_YINLIU_PDF=assets/99999.pdf
-          QUARK_YINLIU_PROBABILITY=1.0
-          QUARK_YINLIU_SUBDIR=自动转存
+          KUAKE_COOKIE_2=${KUAKE_COOKIE_2}
+          FEISHU_ENABLED=true
+          FEISHU_APP_ID=${FEISHU_APP_ID}
+          FEISHU_APP_SECRET=${FEISHU_APP_SECRET}
+          FEISHU_WIKI_NODE_TOKEN=${FEISHU_WIKI_NODE_TOKEN}
+          FEISHU_TABLE_ID=${FEISHU_TABLE_ID}
           EOF
-          echo "已生成 .env"
+          echo "已生成 .env（联动分享所需配置）"
 
       - name: Ensure kuake CLI exists
         shell: bash
@@ -67,25 +58,14 @@ jobs:
         shell: bash
         run: pip install -r requirements.txt
 
-      - name: Smoke test (import + 资源池读取)
-        shell: bash
-        run: |
-          python -c "import sys; sys.path.insert(0,'.'); import main; print('main import OK')"
-          python -c "import sys; sys.path.insert(0,'.'); from core import cache; items = cache.load_local_pool('quark') or []; print(f'资源池载入 {len(items)} 条')"
-
       - name: Unit tests
         shell: bash
         run: python -m pytest tests/ -q
 
-      - name: Diagnose (平台 → 二进制自动识别)
-        shell: bash
-        run: python main.py diagnose || true
-
-      - name: Push resources
+      - name: Run 联动分享
         shell: bash
         env:
           COUNT: ${{ github.event.inputs.count || '6' }}
-          EXCLUDE: ${{ github.event.inputs.exclude || '短剧' }}
         run: |
-          # PanSou 未启动时预检自动 fail-open，不影响推送
-          python main.py quark --count "$COUNT" --exclude $EXCLUDE
+          # 联动分享.py 默认随机 6 个，企业微信 + 飞书自动推送
+          python 联动分享.py "$COUNT"
