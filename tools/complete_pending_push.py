@@ -136,11 +136,10 @@ async def main():
             results.append(r)
 
     if results:
-        webhook_url = config.get("wechat", {}).get("webhook_url", "")
-        if webhook_url:
-            from core.notifier import send_wechat_notification
-            wr = send_wechat_notification(webhook_url, results, "")
-            log_print(f"企业微信通知: {wr}", "INFO")
+        from core.notifier import send_notifications
+        push_res = send_notifications(config, results, "")
+        log_print(f"企业微信通知: {push_res.get('wechat')}", "INFO")
+        log_print(f"飞书机器人通知: {push_res.get('feishu')}", "INFO")
         fs_cfg = config.get("feishu", {})
         if fs_cfg.get("enabled"):
             try:

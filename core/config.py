@@ -133,6 +133,8 @@ def load_config():
         },
         "feishu": {
             "enabled": _get("FEISHU_ENABLED", False, lambda v: v.lower() in ("1", "true", "yes")),
+            # 飞书群机器人（自定义机器人 webhook），与企业微信并行推送消息卡片
+            "webhook_url": _get("FEISHU_WEBHOOK_URL", ""),
             "app_id": _get("FEISHU_APP_ID", ""),
             "app_secret": _get("FEISHU_APP_SECRET", ""),
             "wiki_node_token": _get("FEISHU_WIKI_NODE_TOKEN", ""),

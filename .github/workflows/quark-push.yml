@@ -21,6 +21,7 @@ jobs:
         shell: bash
         env:
           WECHAT_WEBHOOK_URL: ${{ secrets.WECHAT_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
           KUAKE_COOKIE_2: ${{ secrets.KUAKE_COOKIE_2 }}
           FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
           FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
@@ -29,6 +30,7 @@ jobs:
         run: |
           cat > .env <<EOF
           WECHAT_WEBHOOK_URL=${WECHAT_WEBHOOK_URL}
+          FEISHU_WEBHOOK_URL=${FEISHU_WEBHOOK_URL}
           KUAKE_COOKIE_2=${KUAKE_COOKIE_2}
           FEISHU_ENABLED=true
           FEISHU_APP_ID=${FEISHU_APP_ID}

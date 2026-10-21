@@ -436,33 +436,16 @@ async def run_from_text(text, save_results=False, push_wechat=False):
     log_print(f"\n===== 处理完成: {success_count}/{len(results)} 成功 =====")
 
     wechat_result = None
+    feishu_bot_result = None
     if push_wechat and success_count > 0:
-        import requests as _requests
-        webhook_url = config.get("wechat", {}).get("webhook_url", "")
-        if webhook_url:
-            # 只发一条：替换后的完整文案（不带任何标题头），供直接复制转发。
-            # 2026-10-18 应用户要求：去掉摘要卡片和「替换后完整文本」头部，
-            # 之前发两条（摘要 + 全文）看起来像重复推送。
-            full_text = new_text
-            max_len = 3800
-            chunks = [full_text[i:i + max_len] for i in range(0, len(full_text), max_len)]
-            ok_chunks = 0
-            for ci, chunk in enumerate(chunks):
-                if len(chunks) > 1:
-                    chunk = f"[ {ci+1}/{len(chunks)} ]\n\n" + chunk
-                try:
-                    _requests.post(
-                        webhook_url,
-                        json={"msgtype": "text", "text": {"content": chunk.strip()}},
-                        timeout=10,
-                    )
-                    ok_chunks += 1
-                    log_print(f"企业微信推送分片 {ci+1}/{len(chunks)} 成功", "SUCCESS")
-                except Exception as e:
-                    log_print(f"企业微信推送分片 {ci+1} 失败: {e}", "ERROR")
-            wechat_result = {"success": ok_chunks > 0, "chunks": len(chunks)}
-        else:
-            log_print("未配置 webhook_url，跳过企业微信推送", "WARNING")
+        # 只发一条：替换后的完整文案（不带任何标题头），供直接复制转发。
+        # 2026-10-18 应用户要求：去掉摘要卡片和「替换后完整文本」头部，
+        # 之前发两条（摘要 + 全文）看起来像重复推送。
+        # 2026-10-21：新增飞书群机器人，与企业微信并行推送同一份文案。
+        from core.notifier import send_raw_text
+        _res = send_raw_text(config, new_text)
+        wechat_result = _res.get("wechat")
+        feishu_bot_result = _res.get("feishu")
 
     feishu_result = None
     fs_cfg = config.get("feishu", {})
@@ -494,5 +477,6 @@ async def run_from_text(text, save_results=False, push_wechat=False):
         "replaced_text": new_text,
         "results": results,
         "wechat_result": wechat_result,
+        "feishu_bot_result": feishu_bot_result,
         "feishu_result": feishu_result,
     }

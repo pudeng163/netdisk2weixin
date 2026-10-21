@@ -25,7 +25,7 @@ from core.config import (load_config, get_kuake_cli, get_yinliu_pdf,
                          get_yinliu_files, resolve_path, CACHE_DIR,
                          SHARE_DIR, LOG_DIR, is_check_links_enabled)
 from core.logger import log_print
-from core.notifier import send_wechat_notification
+from core.notifier import send_notifications
 
 # 历史推送记录文件（用于去重）
 SHARE_TOTAL_FILE = str(SHARE_DIR / "share_url_total.txt")
@@ -1097,13 +1097,25 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
                                   "message": f"生成分享链接失败: {e}"})
 
     wechat_result = None
+    feishu_bot_result = None
+    # 企业微信 + 飞书群机器人并行推送（企微地址由调用方传入，飞书从 config 取）
+    _cfg = {}
+    try:
+        _cfg = load_config()
+    except Exception:
+        pass
+    _cfg.setdefault("wechat", {})
     if webhook_url:
+        _cfg["wechat"]["webhook_url"] = webhook_url
+    if _cfg["wechat"].get("webhook_url") or (_cfg.get("feishu", {}) or {}).get("webhook_url"):
         success_shares = [r for r in share_results
                           if isinstance(r, dict) and r.get("share_url")]
         if success_shares:
-            wechat_result = send_wechat_notification(webhook_url, success_shares, kw)
+            _res = send_notifications(_cfg, success_shares, kw)
         else:
-            wechat_result = send_wechat_notification(webhook_url, [], kw, failed=True)
+            _res = send_notifications(_cfg, [], kw, failed=True)
+        wechat_result = _res.get("wechat")
+        feishu_bot_result = _res.get("feishu")
 
     feishu_result = None
     try:
@@ -1138,6 +1150,7 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
         "share_success_count": share_success_count,
         "share_results": share_results,
         "wechat_result": wechat_result,
+        "feishu_bot_result": feishu_bot_result,
         "feishu_result": feishu_result,
         "preview": preview_only,
         "items": None,
