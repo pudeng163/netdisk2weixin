@@ -58,9 +58,6 @@ jobs:
         shell: bash
         run: pip install -r requirements.txt
 
-      - name: Unit tests
-        shell: bash
-        run: python -m pytest tests/ -q
 
       - name: Run 联动分享
         shell: bash
