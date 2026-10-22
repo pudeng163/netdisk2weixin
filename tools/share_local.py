@@ -109,11 +109,24 @@ def list_dirs_raw(kuake_cli, folder_path):
     return items
 
 
-def _kuake(kuake_cli, *args):
-    r = subprocess.run([kuake_cli, *args], capture_output=True, text=True,
-                       timeout=120, encoding="utf-8", errors="replace")
-    out = (r.stdout or "").strip()
-    return r.returncode, out, (r.stderr or "").strip()
+def _kuake(kuake_cli, *args, retries=3):
+    """调用 kuake CLI，带重试（runner 上网络抖动会导致偶发失败/超时）。"""
+    last_err = ""
+    for attempt in range(1, retries + 1):
+        try:
+            r = subprocess.run([kuake_cli, *args], capture_output=True, text=True,
+                               timeout=120, encoding="utf-8", errors="replace")
+            out = (r.stdout or "").strip()
+            if r.returncode == 0 or attempt == retries:
+                return r.returncode, out, (r.stderr or "").strip()
+            last_err = f"exit={r.returncode} {(r.stderr or '').strip()[:100]}"
+        except subprocess.TimeoutExpired as e:
+            last_err = f"超时({e.timeout}s)"
+        except OSError as e:
+            last_err = str(e)
+        log_print(f"kuake 调用失败({last_err})，重试 {attempt}/{retries - 1}: {' '.join(args[:2])}", "WARN")
+        time.sleep(3 * attempt)
+    return 124, "", f"kuake 调用失败: {last_err}"
 
 
 def _parse_json(out):
@@ -225,6 +238,12 @@ def main():
     else:
         record_file = SHARE_TOTAL_FILE
 
+    # 确保记录目录存在（GitHub Actions 全新 checkout 时 data/share/ 不存在）
+    try:
+        os.makedirs(os.path.dirname(record_file), exist_ok=True)
+    except OSError as e:
+        log_print(f"创建推送记录目录失败: {e}", "WARNING")
+
     config = load_config()
     kuake_cli = get_kuake_cli(config)
     if not kuake_cli or not os.path.exists(kuake_cli):
@@ -290,12 +309,19 @@ def main():
             if not fid:
                 log_print(f"获取 fid 失败，跳过: {name}", "ERROR")
                 continue
-            try:
-                data = share_multi_fid(current_cookie, [fid] + extra_fids, name)
-                share_url = data["share_url"]
-            except Exception as e:
-                log_print(f"合并分享失败: {name} | {e}", "ERROR")
+            data = None
+            for attempt in range(1, 4):
+                try:
+                    data = share_multi_fid(current_cookie, [fid] + extra_fids, name)
+                    break
+                except Exception as e:
+                    log_print(f"合并分享失败({attempt}/3): {name} | {e}", "WARN")
+                    if attempt < 3:
+                        time.sleep(5 * attempt)
+            if not data:
+                log_print(f"合并分享多次重试仍失败，跳过: {name}", "ERROR")
                 continue
+            share_url = data["share_url"]
             log_print(f"分享成功(含{data['file_num']}项): {name} - {share_url}", "SUCCESS")
         else:
             path = args.folder.rstrip("/") + "/" + name
@@ -313,9 +339,13 @@ def main():
         # 上传引流文件
         _upload_yinliu_files(kuake_cli, yinliu_files, name, args.folder)
 
-        # 写入已推送记录（按账号分文件）
-        with open(record_file, "a", encoding="utf-8") as f:
-            f.write(f"{name}  |  {share_url}  |  DONE\n")
+        # 写入已推送记录（按账号分文件；失败不阻断后续分享与推送）
+        try:
+            os.makedirs(os.path.dirname(record_file), exist_ok=True)
+            with open(record_file, "a", encoding="utf-8") as f:
+                f.write(f"{name}  |  {share_url}  |  DONE\n")
+        except OSError as e:
+            log_print(f"写入推送记录失败（不影响本次分享）: {e}", "WARNING")
 
         share_results.append({"note": name, "share_url": share_url,
                               "title": name, "size": ""})

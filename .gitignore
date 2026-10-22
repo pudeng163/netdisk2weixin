@@ -31,3 +31,6 @@ pansou/pansou.log
 
 # PanSou 源码例外：PanSou 的 Go 源码包 config/ 不受上方 config/ 规则影响
 !pansou/config/
+
+# WorkBuddy 工作区记忆（含本地路径等隐私信息，不上传）
+.workbuddy/
