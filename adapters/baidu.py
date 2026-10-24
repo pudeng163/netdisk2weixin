@@ -13,7 +13,7 @@ import requests
 from core import cache
 from core.config import load_config, resolve_path
 from core.logger import log_print
-from core.notifier import send_wechat_notification
+from core.notifier import send_notifications
 
 BASE_URL = "https://pan.baidu.com"
 HEADERS = {
@@ -339,11 +339,18 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
             log_print(f"处理资源失败 {note}：{e}", "ERROR")
 
     wechat_result = None
-    if webhook_url:
+    feishu_bot_result = None
+    _fs_url = (config.get("feishu", {}) or {}).get("webhook_url", "")
+    if notify and (webhook_url or _fs_url):
         if results:
-            wechat_result = send_wechat_notification(webhook_url, results, kw)
+            _res = send_notifications(config, results, kw)
         elif resources:
-            wechat_result = send_wechat_notification(webhook_url, [], kw, failed=True)
+            _res = send_notifications(config, [], kw, failed=True)
+        else:
+            _res = None
+        if _res:
+            wechat_result = _res.get("wechat")
+            feishu_bot_result = _res.get("feishu")
 
     log_print(f"完成！成功处理 {len(results)} 个资源")
     return {
@@ -354,6 +361,7 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
         "share_success_count": len(results),
         "share_results": results,
         "wechat_result": wechat_result,
+        "feishu_bot_result": feishu_bot_result,
         "preview": preview_only,
         "items": None,
     }

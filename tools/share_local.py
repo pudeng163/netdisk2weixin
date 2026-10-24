@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.config import load_config
 from core.logger import log_print
-from core.notifier import send_wechat_notification
+from core.notifier import send_notifications
 from adapters.quark import SHARE_TOTAL_FILE, get_kuake_cli, _upload_yinliu_files
 
 YINLIU_ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
@@ -355,9 +355,9 @@ def main():
         log_print("全部分享失败，不推送", "ERROR")
         sys.exit(2)
 
-    # 企业微信
-    webhook_url = config.get("wechat", {}).get("webhook_url", "")
-    wechat_result = send_wechat_notification(webhook_url, share_results, kw="网盘自有资源")
+    # 企业微信 + 飞书群机器人（并行推送，未配置的通道自动跳过）
+    push_result = send_notifications(config, share_results, kw="网盘自有资源")
+    wechat_result = push_result.get("wechat")
 
     # 飞书
     feishu_result = None
@@ -381,6 +381,7 @@ def main():
         "success_count": len(share_results),
         "shares": share_results,
         "wechat": wechat_result,
+        "feishu_bot": push_result.get("feishu"),
         "feishu": feishu_result,
     }, ensure_ascii=False, indent=2))
 

@@ -158,6 +158,11 @@ TARGET_FOLDER=转存资源    # 百度网盘目标文件夹
 # ====== 企业微信机器人 ======
 WECHAT_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=你的key
 
+# ====== 飞书群机器人（可选，与企业微信并行推送）======
+# 群设置 → 群机器人 → 添加自定义机器人，复制 Webhook 地址
+# 两个通道互相独立：都填则两边都推，只填一个就只推一个，都不填则跳过推送
+FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/你的hook
+
 # ====== 百度网盘 ======
 BAIDU_COOKIE=            # 必填，转存百度才需要
 # BAIDU_COUNT=           # 留空则用全局 COUNT
