@@ -15,10 +15,12 @@
 """
 from .baidu import run as run_baidu
 from .quark import run as run_quark
+from .xunlei import run as run_xunlei
 
 ADAPTERS = {
     "baidu": run_baidu,
     "quark": run_quark,
+    "xunlei": run_xunlei,
 }
 
 

@@ -90,6 +90,10 @@ def load_config():
     baidu_count = _get("BAIDU_COUNT", None, int)
     baidu_target_folder = _get("BAIDU_TARGET_FOLDER", None)
 
+    xunlei_refresh_token = _get("XUNLEI_REFRESH_TOKEN", "")
+    xunlei_count = _get("XUNLEI_COUNT", None, int)
+    xunlei_target_folder = _get("XUNLEI_TARGET_FOLDER", None)
+
     quark_cookie = _get("QUARK_COOKIE", "")
     quark_count = _get("QUARK_COUNT", None, int)
     quark_kuake_cli = _get("QUARK_KUAKE_CLI", "")
@@ -120,6 +124,11 @@ def load_config():
             "cookie": baidu_cookie,
             "count": baidu_count if baidu_count is not None else count,
             "target_folder": baidu_target_folder or target_folder,
+        },
+        "xunlei": {
+            "refresh_token": xunlei_refresh_token,
+            "count": xunlei_count if xunlei_count is not None else count,
+            "target_folder": xunlei_target_folder or target_folder,
         },
         "quark": {
             "cookie": quark_cookie,

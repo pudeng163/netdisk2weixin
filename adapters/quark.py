@@ -1069,7 +1069,7 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
             delay = random.random() * 4
             time.sleep(delay)
             result = await manager.share_run(file_id, folder_id=folder_fid,
-                                             url_type=1, expired_type=1,
+                                             url_type=1, expired_type=0,
                                              password="", traverse_depth=0)
             if isinstance(result, dict):
                 result["index"] = save_result["index"]
