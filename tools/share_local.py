@@ -324,16 +324,25 @@ def main():
             share_url = data["share_url"]
             log_print(f"分享成功(含{data['file_num']}项): {name} - {share_url}", "SUCCESS")
         else:
-            path = args.folder.rstrip("/") + "/" + name
-            code, out, err = _kuake(kuake_cli, "share", path, "0", "false")
-            data = _parse_json(out) if code == 0 else None
+            # 单 fid 也走 API（share_multi_fid，默认 expired_type=1=永久），
+            # 避免依赖 kuake CLI 的 days 参数映射，确保所有分享统一为永久。
+            fid = fid_of(kuake_cli, args.folder, name)
+            if not fid:
+                log_print(f"获取 fid 失败，跳过: {name}", "ERROR")
+                continue
+            data = None
+            for attempt in range(1, 4):
+                try:
+                    data = share_multi_fid(current_cookie, [fid], name)
+                    break
+                except Exception as e:
+                    log_print(f"分享失败({attempt}/3): {name} | {e}", "WARN")
+                    if attempt < 3:
+                        time.sleep(5 * attempt)
             if not data:
-                log_print(f"分享失败: {name} | {err[:150] or out[:150]}", "ERROR")
+                log_print(f"分享多次重试仍失败，跳过: {name}", "ERROR")
                 continue
-            share_url = data.get("share_url") or data.get("url") or ""
-            if not share_url:
-                log_print(f"分享失败（无链接）: {name} | {out[:150]}", "ERROR")
-                continue
+            share_url = data["share_url"]
             log_print(f"分享成功: {name} - {share_url}", "SUCCESS")
 
         # 上传引流文件

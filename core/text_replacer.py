@@ -222,7 +222,7 @@ async def _save_and_share_quark(url, password, folder_fid, kuake_cli, pdf_path="
 
     share_result = await manager.share_run(
         file_ids, folder_id=folder_fid,
-        url_type=1, expired_type=4,
+        url_type=1, expired_type=1,
         password="", traverse_depth=0
     )
 
