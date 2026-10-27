@@ -437,37 +437,31 @@ async def run_from_text(text, save_results=False, push_wechat=False):
 
     wechat_result = None
     feishu_bot_result = None
-    if push_wechat and success_count > 0:
-        # 只发一条：替换后的完整文案（不带任何标题头），供直接复制转发。
-        # 2026-10-18 应用户要求：去掉摘要卡片和「替换后完整文本」头部，
-        # 之前发两条（摘要 + 全文）看起来像重复推送。
-        # 2026-10-21：新增飞书群机器人，与企业微信并行推送同一份文案。
-        from core.notifier import send_raw_text
-        _res = send_raw_text(config, new_text)
-        wechat_result = _res.get("wechat")
-        feishu_bot_result = _res.get("feishu")
-
     feishu_result = None
-    fs_cfg = config.get("feishu", {})
-    if fs_cfg.get("enabled") and success_count > 0:
-        try:
-            from core.feishu_client import batch_write_resources
-            feishu_items = []
-            for r in results:
-                if r["status"] == "success" and r.get("new_url"):
-                    feishu_items.append({
-                        # 资源名称 = 转存成功时显示的名称（分享接口返回的 title）
-                        "name": r.get("display_title") or f"资源{r.get('index','?')}",
-                        "url": r["new_url"],
-                        "size": r.get("size", ""),
-                        "tag": r.get("platform", ""),
-                        "search": r.get("display_title") or "",
-                        "update_time": time.strftime("%Y-%m-%d"),
-                    })
-            if feishu_items:
-                feishu_result = batch_write_resources(config, feishu_items)
-        except Exception as e:
-            log_print(f"飞书写入异常: {e}", "ERROR")
+    # 飞书 bitable 用的标准 shares（name=展示标题，tag=平台中文名）
+    bitable_shares = []
+    for r in results:
+        if r["status"] == "success" and r.get("new_url"):
+            bitable_shares.append({
+                "platform": r.get("platform", ""),
+                "note": r.get("display_title") or r.get("origin_title")
+                        or f"资源{r.get('index', '?')}",
+                "title": r.get("display_title") or "",
+                "share_url": r["new_url"],
+                "size": r.get("size", ""),
+            })
+    try:
+        from core.post_share import send_messages, write_feishu_bitable
+        # 消息：成功时推送替换后的完整文案（raw_text）；失败则不发
+        if push_wechat and success_count > 0:
+            m = send_messages(config, [], raw_text=new_text)
+            wechat_result = m["wechat"]
+            feishu_bot_result = m["feishu"]
+        # bitable：每次替换成功都写，确保「必定写入飞书」（不受 push_wechat 影响）
+        if success_count > 0:
+            feishu_result = write_feishu_bitable(config, bitable_shares)
+    except Exception as e:
+        log_print(f"推送/写入异常: {e}", "ERROR")
 
     return {
         "code": 200 if success_count > 0 else 400,

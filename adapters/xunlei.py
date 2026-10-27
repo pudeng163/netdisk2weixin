@@ -35,7 +35,6 @@ import requests
 from core import cache
 from core.config import load_config, DATA_DIR, SHARE_DIR
 from core.logger import log_print
-from core.notifier import send_wechat_notification
 
 # ==================== 常量 ====================
 
@@ -920,25 +919,21 @@ def run(
                 "message": str(exc),
             })
 
-    # 企业微信推送
+    # 统一收口：企微 + 飞书 bot + 飞书 bitable（core.post_share）
     wechat_result = None
-    if webhook_url and share_success_count > 0:
-        success_shares = [
-            {
-                "note": r.get("note", ""),
-                "share_url": r.get("share_url", ""),
-                "pass_code": r.get("pass_code", ""),
-            }
-            for r in share_results
-            if r.get("share_url")
-        ]
-        if success_shares:
-            try:
-                wechat_result = send_wechat_notification(
-                    webhook_url, success_shares, kw or "迅雷"
-                )
-            except Exception as exc:
-                log_print(f"[xunlei] 企微推送异常: {exc}", "WARNING")
+    feishu_bot_result = None
+    feishu_result = None
+    success_shares = [r for r in share_results if r.get("share_url")]
+    if success_shares:
+        try:
+            from core.post_share import send_messages, write_feishu_bitable
+            config = load_config()
+            m = send_messages(config, success_shares, kw=kw or "迅雷")
+            wechat_result = m["wechat"]
+            feishu_bot_result = m["feishu"]
+            feishu_result = write_feishu_bitable(config, success_shares, platform="xunlei")
+        except Exception as exc:
+            log_print(f"[xunlei] 推送异常: {exc}", "WARNING")
 
     return {
         "code": 200,
@@ -948,6 +943,8 @@ def run(
         "share_success_count": share_success_count,
         "share_results": share_results,
         "wechat_result": wechat_result,
+        "feishu_bot_result": feishu_bot_result,
+        "feishu_result": feishu_result,
         "preview": False,
         "items": None,
     }

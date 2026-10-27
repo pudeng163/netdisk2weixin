@@ -158,9 +158,12 @@ def send_feishu_notification(webhook_url, shares, kw=None, failed=False):
                         _feishu_payload, "飞书")
 
 
-def send_notifications(config, shares, kw=None, failed=False):
+def send_notifications(config, shares, kw=None, failed=False, push_feishu=True):
     """按 config 并行推送企业微信 + 飞书机器人。
 
+    :param push_feishu: 是否推送飞书群机器人（默认 True）。
+        设为 False 时仅推送企业微信，飞书交由调用方自行处理
+        （例如 联动分享.py 自行负责飞书推送）。
     :returns: {"wechat": {...}|None, "feishu": {...}|None}
               未配置对应 webhook 时该通道为 None。
     """
@@ -169,15 +172,18 @@ def send_notifications(config, shares, kw=None, failed=False):
                 "feishu": None}
 
     wechat_url = (config.get("wechat", {}) or {}).get("webhook_url", "")
-    feishu_url = (config.get("feishu", {}) or {}).get("webhook_url", "")
+    feishu_cfg = (config.get("feishu", {}) or {})
+    feishu_url = feishu_cfg.get("webhook_url", "")
+    # 飞书群机器人同样受 FEISHU_ENABLED 总开关控制（与 bitable 共用单一开关）
+    feishu_enabled = bool(feishu_cfg.get("enabled"))
 
     out = {"wechat": None, "feishu": None}
     if wechat_url:
         out["wechat"] = send_wechat_notification(wechat_url, shares, kw, failed)
-    if feishu_url:
+    if feishu_url and push_feishu and feishu_enabled:
         out["feishu"] = send_feishu_notification(feishu_url, shares, kw, failed)
-    if not wechat_url and not feishu_url:
-        log_print("未配置任何 webhook（企业微信/飞书），跳过推送", "WARNING")
+    if not wechat_url and not (feishu_url and push_feishu and feishu_enabled):
+        log_print("未配置任何 webhook（企业微信/飞书）或飞书未启用，跳过推送", "WARNING")
     return out
 
 
@@ -191,15 +197,18 @@ def send_raw_text(config, text, max_len=MAX_LEN, add_page_marks=True):
         return {"wechat": None, "feishu": None, "chunks": 0}
 
     wechat_url = (config.get("wechat", {}) or {}).get("webhook_url", "")
-    feishu_url = (config.get("feishu", {}) or {}).get("webhook_url", "")
+    feishu_cfg = (config.get("feishu", {}) or {})
+    feishu_url = feishu_cfg.get("webhook_url", "")
+    # 飞书群机器人同样受 FEISHU_ENABLED 总开关控制（与 bitable 共用单一开关）
+    feishu_enabled = bool(feishu_cfg.get("enabled"))
 
     out = {"wechat": None, "feishu": None, "chunks": len(chunks)}
     if wechat_url:
         out["wechat"] = _send_chunks(wechat_url, chunks, _wechat_payload,
                                      "企业微信", add_page_marks)
-    if feishu_url:
+    if feishu_url and feishu_enabled:
         out["feishu"] = _send_chunks(feishu_url, chunks, _feishu_payload,
                                      "飞书", add_page_marks)
-    if not wechat_url and not feishu_url:
-        log_print("未配置任何 webhook（企业微信/飞书），跳过推送", "WARNING")
+    if not wechat_url and not (feishu_url and feishu_enabled):
+        log_print("未配置任何 webhook（企业微信/飞书）或飞书未启用，跳过推送", "WARNING")
     return out

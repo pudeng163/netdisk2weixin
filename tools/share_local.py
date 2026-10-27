@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.config import load_config
 from core.logger import log_print
-from core.notifier import send_notifications
+from core.post_share import send_messages, write_feishu_bitable
 from adapters.quark import SHARE_TOTAL_FILE, get_kuake_cli, _upload_yinliu_files
 
 YINLIU_ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
@@ -206,6 +206,8 @@ def main():
     ap.add_argument("--with-fid", dest="with_fid", default=None, metavar="FID",
                     help="额外打包进每个分享链接的 fid（如防失联目录），可逗号分隔多个")
     ap.add_argument("--no-yinliu", action="store_true", help="不上传引流文件")
+    ap.add_argument("--no-feishu", action="store_true",
+                    help="不推送飞书（由调用方如 联动分享.py 自行负责飞书推送）")
     args = ap.parse_args()
 
     # 多账号：把对应 Cookie 注入 KUAKE_COOKIE 环境变量（kuake CLI 从这里认证）
@@ -364,33 +366,29 @@ def main():
         log_print("全部分享失败，不推送", "ERROR")
         sys.exit(2)
 
-    # 企业微信 + 飞书群机器人（并行推送，未配置的通道自动跳过）
-    push_result = send_notifications(config, share_results, kw="网盘自有资源")
-    wechat_result = push_result.get("wechat")
-
-    # 飞书
+    # 统一收口：企微 + 飞书 bot + 飞书 bitable（core.post_share）
+    # --no-feishu 时把飞书让给调用方（联动分享.py）统一负责，避免重复推送——
+    # 这里临时把 cfg 里的 feishu.enabled 置 False，send_messages 就不会推飞书 bot。
+    wechat_result = None
+    feishu_bot_result = None
     feishu_result = None
-    fs_cfg = config.get("feishu", {})
-    if fs_cfg.get("enabled"):
-        try:
-            from core.feishu_client import batch_write_resources
-            items = [{
-                "name": r["title"],
-                "url": r["share_url"],
-                "size": "",
-                "tag": "夸克",
-                "search": r["title"],
-                "update_time": time.strftime("%Y-%m-%d"),
-            } for r in share_results]
-            feishu_result = batch_write_resources(config, items)
-        except Exception as e:
-            log_print(f"飞书写入异常: {e}", "ERROR")
+    if share_results:
+        cfg = config
+        if args.no_feishu and config.get("feishu", {}).get("enabled"):
+            cfg = dict(config)
+            cfg["feishu"] = dict(config.get("feishu", {}))
+            cfg["feishu"]["enabled"] = False
+        m = send_messages(cfg, share_results, kw="网盘自有资源")
+        wechat_result = m["wechat"]
+        feishu_bot_result = m["feishu"]
+        if not args.no_feishu:
+            feishu_result = write_feishu_bitable(config, share_results, platform="quark")
 
     print(json.dumps({
         "success_count": len(share_results),
         "shares": share_results,
         "wechat": wechat_result,
-        "feishu_bot": push_result.get("feishu"),
+        "feishu_bot": feishu_bot_result,
         "feishu": feishu_result,
     }, ensure_ascii=False, indent=2))
 

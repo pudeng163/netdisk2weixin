@@ -13,7 +13,6 @@ import requests
 from core import cache
 from core.config import load_config, resolve_path
 from core.logger import log_print
-from core.notifier import send_notifications
 
 BASE_URL = "https://pan.baidu.com"
 HEADERS = {
@@ -340,17 +339,17 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
 
     wechat_result = None
     feishu_bot_result = None
-    _fs_url = (config.get("feishu", {}) or {}).get("webhook_url", "")
-    if notify and (webhook_url or _fs_url):
-        if results:
-            _res = send_notifications(config, results, kw)
-        elif resources:
-            _res = send_notifications(config, [], kw, failed=True)
-        else:
-            _res = None
-        if _res:
-            wechat_result = _res.get("wechat")
-            feishu_bot_result = _res.get("feishu")
+    feishu_result = None
+    # 统一收口：企微 + 飞书 bot + 飞书 bitable（core.post_share）
+    # notify=False 时（文本替换路径由外层统一推送）本段整体跳过
+    if notify:
+        success_shares = [r for r in results if r.get("share_url")]
+        if success_shares or results:
+            m = send_messages(config, success_shares, kw=kw, failed=not success_shares)
+            wechat_result = m["wechat"]
+            feishu_bot_result = m["feishu"]
+        if success_shares:
+            feishu_result = write_feishu_bitable(config, success_shares, platform="baidu")
 
     log_print(f"完成！成功处理 {len(results)} 个资源")
     return {
@@ -362,6 +361,7 @@ def run(count=None, kw=None, include=None, exclude=None, preview_only=False, for
         "share_results": results,
         "wechat_result": wechat_result,
         "feishu_bot_result": feishu_bot_result,
+        "feishu_result": feishu_result,
         "preview": preview_only,
         "items": None,
     }

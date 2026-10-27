@@ -136,23 +136,12 @@ async def main():
             results.append(r)
 
     if results:
-        from core.notifier import send_notifications
-        push_res = send_notifications(config, results, "")
-        log_print(f"企业微信通知: {push_res.get('wechat')}", "INFO")
-        log_print(f"飞书机器人通知: {push_res.get('feishu')}", "INFO")
-        fs_cfg = config.get("feishu", {})
-        if fs_cfg.get("enabled"):
-            try:
-                from core.feishu_client import batch_write_resources
-                items = [{"name": r["title"] or r["note"], "url": r["share_url"],
-                          "size": r.get("size", ""), "tag": "夸克",
-                          "search": r["title"] or r["note"],
-                          "update_time": time.strftime("%Y-%m-%d")}
-                         for r in results]
-                fr = batch_write_resources(config, items)
-                log_print(f"飞书写入: {fr}", "INFO")
-            except Exception as e:
-                log_print(f"飞书写入异常: {e}", "ERROR")
+        from core.post_share import send_messages, write_feishu_bitable
+        m = send_messages(config, results, kw="补全未推送资源")
+        log_print(f"企业微信通知: {m.get('wechat')}", "INFO")
+        log_print(f"飞书机器人通知: {m.get('feishu')}", "INFO")
+        fr = write_feishu_bitable(config, results, platform="quark")
+        log_print(f"飞书写入: {fr}", "INFO")
 
     log_print(f"补全完成：{len(results)} 个资源", "SUCCESS")
     return 0

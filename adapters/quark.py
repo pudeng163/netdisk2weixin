@@ -25,7 +25,6 @@ from core.config import (load_config, get_kuake_cli, get_yinliu_pdf,
                          get_yinliu_files, resolve_path, CACHE_DIR,
                          SHARE_DIR, LOG_DIR, is_check_links_enabled)
 from core.logger import log_print
-from core.notifier import send_notifications
 
 # 历史推送记录文件（用于去重）
 SHARE_TOTAL_FILE = str(SHARE_DIR / "share_url_total.txt")
@@ -1098,49 +1097,25 @@ async def _batch_save_and_share(count, webhook_url, kuake_cli, pdf_path,
 
     wechat_result = None
     feishu_bot_result = None
-    # 企业微信 + 飞书群机器人并行推送（企微地址由调用方传入，飞书从 config 取）
-    _cfg = {}
+    feishu_result = None
+    # 统一收口：企微 + 飞书 bot + 飞书 bitable（core.post_share）
+    # 成功 -> 推摘要 + 写表；全失败 -> 推失败通知（不写表）
+    success_shares = [r for r in share_results
+                      if isinstance(r, dict) and r.get("share_url")]
     try:
+        from core.post_share import send_messages, write_feishu_bitable
         _cfg = load_config()
     except Exception:
-        pass
+        _cfg = {}
     _cfg.setdefault("wechat", {})
     if webhook_url:
         _cfg["wechat"]["webhook_url"] = webhook_url
-    if _cfg["wechat"].get("webhook_url") or (_cfg.get("feishu", {}) or {}).get("webhook_url"):
-        success_shares = [r for r in share_results
-                          if isinstance(r, dict) and r.get("share_url")]
-        if success_shares:
-            _res = send_notifications(_cfg, success_shares, kw)
-        else:
-            _res = send_notifications(_cfg, [], kw, failed=True)
-        wechat_result = _res.get("wechat")
-        feishu_bot_result = _res.get("feishu")
-
-    feishu_result = None
-    try:
-        config = load_config()
-    except Exception:
-        config = {}
-    fs_cfg = config.get("feishu", {})
-    if fs_cfg.get("enabled") and share_success_count > 0:
-        try:
-            from core.feishu_client import batch_write_resources
-            feishu_items = []
-            for r in share_results:
-                if isinstance(r, dict) and r.get("share_url"):
-                    feishu_items.append({
-                        "name": r.get("title") or r.get("note", ""),
-                        "url": r["share_url"],
-                        "size": r.get("size", ""),
-                        "tag": "夸克",
-                        "search": r.get("title") or r.get("note", ""),
-                        "update_time": time.strftime("%Y-%m-%d"),
-                    })
-            if feishu_items:
-                feishu_result = batch_write_resources(config, feishu_items)
-        except Exception as e:
-            log_print(f"飞书写入异常: {e}", "ERROR")
+    if success_shares or share_results:
+        m = send_messages(_cfg, success_shares, kw=kw, failed=not success_shares)
+        wechat_result = m["wechat"]
+        feishu_bot_result = m["feishu"]
+    if success_shares:
+        feishu_result = write_feishu_bitable(_cfg, success_shares, platform="quark")
 
     return {
         "code": 200,
